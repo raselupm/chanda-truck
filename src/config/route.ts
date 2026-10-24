@@ -100,22 +100,22 @@ export interface StartPoint {
 }
 
 const LALON: LegalStop = {
-  id: 'lalon', type: 'bridgeToll', feeKey: 'lalonToll', nameBn: 'লালন শাহ সেতু টোল', icon: '🌉',
+  id: 'lalon', type: 'bridgeToll', feeKey: 'lalonToll', nameBn: 'লালন শাহ সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'লালন শাহ সেতু', style: 'lalon', offset: 300, length: 550 },
 };
 const NATORE: LegalStop = {
-  id: 'natore', type: 'roadToll', feeKey: 'natoreToll', nameBn: 'নাটোর সড়ক টোল', icon: '🧾', small: true,
+  id: 'natore', type: 'roadToll', feeKey: 'natoreToll', nameBn: 'নাটোর সড়ক টোল', icon: '{receipt}', small: true,
 };
 const JAMUNA: LegalStop = {
-  id: 'jamuna', type: 'bridgeToll', feeKey: 'jamunaToll', nameBn: 'যমুনা সেতু টোল', icon: '🌉',
+  id: 'jamuna', type: 'bridgeToll', feeKey: 'jamunaToll', nameBn: 'যমুনা সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'যমুনা সেতু', style: 'jamuna', offset: 300, length: 650 },
 };
 const PADMA: LegalStop = {
-  id: 'padma', type: 'bridgeToll', feeKey: 'padmaToll', nameBn: 'পদ্মা সেতু টোল', icon: '🌉',
-  bridge: { nameBn: 'পদ্মা সেতু', style: 'padma', offset: 300, length: 700 },
+  id: 'padma', type: 'bridgeToll', feeKey: 'padmaToll', nameBn: 'পদ্মা সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'পদ্মা সেতু', style: 'padma', offset: 520, length: 760 },
 };
 const EXPRESSWAY: LegalStop = {
-  id: 'expressway', type: 'roadToll', feeKey: 'expresswayToll', nameBn: 'এক্সপ্রেসওয়ে টোল', icon: '🛣️',
+  id: 'expressway', type: 'roadToll', feeKey: 'expresswayToll', nameBn: 'এক্সপ্রেসওয়ে টোল', icon: '{road}',
 };
 
 export const START_POINTS: StartPoint[] = [
@@ -148,13 +148,13 @@ export const START_POINTS: StartPoint[] = [
 export const DEFAULT_START_ID = 'jessore';
 
 const FARMS: FarmEvent[] = [
-  { id: 'farm1', type: 'farm', s: 130, side: -1, nameBn: 'রহিম চাচার ক্ষেত', icon: '🌾', vegetables: ['tomato', 'chili'],
+  { id: 'farm1', type: 'farm', s: 130, side: -1, nameBn: 'রহিম চাচার ক্ষেত', icon: '{farm}', vegetables: ['tomato', 'chili'],
     farmerLineBn: 'বাবা, টমেটো এবার ভালো হইছে, কিন্তু পাইকার আসে নাই।' },
-  { id: 'farm2', type: 'farm', s: 270, side: 1, nameBn: 'জমিলা খালার ক্ষেত', icon: '🌾', vegetables: ['potato', 'onion'],
+  { id: 'farm2', type: 'farm', s: 270, side: 1, nameBn: 'জমিলা খালার ক্ষেত', icon: '{farm}', vegetables: ['potato', 'onion'],
     farmerLineBn: 'হিমাগারের ভাড়া দিয়ে আর কিছু থাকে না, নিয়া যাও।' },
-  { id: 'farm3', type: 'farm', s: 410, side: -1, nameBn: 'হারুন মিয়ার ক্ষেত', icon: '🌾', vegetables: ['brinjal', 'gourd', 'cauliflower'],
+  { id: 'farm3', type: 'farm', s: 410, side: -1, nameBn: 'হারুন মিয়ার ক্ষেত', icon: '{farm}', vegetables: ['brinjal', 'gourd', 'cauliflower'],
     farmerLineBn: 'ঢাকায় শুনি বেগুন ষাট টাকা! আমি তো পাই বাইশ।' },
-  { id: 'farm4', type: 'farm', s: 550, side: 1, nameBn: 'নুরুল ভাইয়ের ক্ষেত', icon: '🌾', vegetables: ['cabbage', 'cauliflower', 'tomato'],
+  { id: 'farm4', type: 'farm', s: 550, side: 1, nameBn: 'নুরুল ভাইয়ের ক্ষেত', icon: '{farm}', vegetables: ['cabbage', 'cauliflower', 'tomato'],
     farmerLineBn: 'সার-বীজের দাম বাড়ে, আমার দাম বাড়ে না।' },
 ];
 
@@ -206,7 +206,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   let r = 0;
   seq.forEach((item, idx) => {
     if (item === 'R') {
-      events.push({ id: `rail${++r}`, type: 'rail', s, nameBn: 'রেলক্রসিং', icon: '🚆' });
+      events.push({ id: `rail${++r}`, type: 'rail', s, nameBn: 'রেলক্রসিং', icon: '{train}' });
       s += range(rng, ...LAYOUT.afterToll);
     } else if (item === 'B') {
       const last = idx === seq.length - 1;
@@ -218,7 +218,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
         chanda: chandaAmount(rng, b, sp.randomBarriers),
         workers: 4 + Math.floor(rng() * 5),
         nameBn: `চাঁদা পয়েন্ট ${toBnDigits(b + 1)} — ${place}`,
-        icon: '✋',
+        icon: '{hand}',
       });
       if (rng() < 0.6 || last) townZones.push([s - 380, s + 120]);
       b++;
@@ -232,7 +232,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   s = Math.round(s);
   const cityStartS = s - 300;
   const marketS = s + LAYOUT.cityStretch;
-  events.push({ id: 'market', type: 'market', s: marketS, nameBn: 'কাওরান বাজার', icon: '🛒' });
+  events.push({ id: 'market', type: 'market', s: marketS, nameBn: 'কাওরান বাজার', icon: '{cart}' });
 
   // Slow zones: every bazaar, a few schools in quiet stretches, and the market approach
   const slowZones: SlowZone[] = townZones.map(([a, b2]) => ({

@@ -41,8 +41,12 @@ Phones are played in **portrait**: steering buttons bottom-left, pedals bottom-r
 between. Holding a phone sideways shows a "rotate to portrait" hint, and the camera switches to a taller
 FOV for portrait screens (`CAMERA.portrait` in `tuning.ts`).
 
-Press the horn and the vehicle in front of you gives way: from the inner lane it moves to the outer
-lane, and from the outer lane to the shoulder. An oncoming bus overtaking in your lane also ducks back.
+Press the horn and the vehicle in front of you swaps lanes to let you through: from the right lane it
+moves left, from the left lane it moves right (only if the other lane is free).
+- Cars, CNGs and rickshaws move on one tap.
+- Buses and trucks need 3 taps within 6 seconds, or a long press of 1.2 seconds
+  (`TRAFFIC.heavyHonks`, `heavyHonkWindow`, `longHornSeconds`).
+- An oncoming bus overtaking in your lane ducks back on any horn.
 
 There is no driving assist: the truck keeps its heading, so you steer through every bend yourself.
 The highway is curvy between events (`ROAD.bend*` in `tuning.ts`, minimum radius `bendMinRadius`)
@@ -83,10 +87,20 @@ All numbers live in `src/config/`:
   bumper stickers. All the lines are in `world/VehicleArt.ts`.
 - **Billboards:** 19 illustrated parody billboards on both sides of the road (`BILLBOARDS` in
   `world/Scenery.ts`). Every brand is made up.
+- **Pedestrians:** they open umbrellas when it rains and carry flashlights after dark.
 - **Slow zones** (`SLOW_ZONES` in `tuning.ts`): every bazaar (40 km/h), 2–3 random schools (30 km/h) and
   the Karwan Bazar approach (30 km/h). Each has signs, and schools also get a school building, kids
   playing behind a wall and a zebra crossing. Speeding there shows a HUD limit badge and a funny warning,
   but no penalty.
+
+## Bridges
+
+- **Jamuna and Lalon Shah:** concrete box-girder bridges on twin piers, with a name arch over the road.
+- **Padma:** modelled on the real double-deck design. The road runs on top of a deep grey steel Warren
+  truss, the two-track railway deck is enclosed inside the truss, and it stands on massive piers.
+  The deck is 22 m up, reached by long approach ramps, with a roadside name monument.
+
+Deck heights and ramp lengths are in `ROAD.bridgeStyles`.
 
 ## Railway crossings
 
@@ -119,6 +133,15 @@ Every payment goes through `Ledger` (`src/game/Ledger.ts`) with a category: `PUR
 - "Without chanda" per-kg cost = (total cash − chanda/penalty paid in cash) ÷ (delivered kg + kg taken
   as chanda).
 
+## Icons
+
+The game uses no emoji. Every icon is a flat SVG in `src/ui/icons.ts`, so it looks the same on every
+phone. In any game text, write an icon as a token such as `"{truck} ঢাকার পথে"`.
+- The DOM helpers (`el`, `button`, `setText`) turn tokens into inline SVG.
+- Canvas textures (signs, billboards, vehicle slogans, the share image) draw them with `fillRich()`.
+  Icons are preloaded as images at boot for this.
+- To add an icon, add an SVG to `ICONS`.
+
 ## Project layout
 
 ```
@@ -146,6 +169,26 @@ the same orientation (facing −Z, origin at ground centre).
 - People, vehicles and set pieces are merged vertex-coloured meshes (one draw call each), and set
   pieces are hidden when far away.
 - Phones get no MSAA and a 1.25 pixel-ratio cap. Typical scene: ~80 draw calls and ~25k triangles.
+
+## SEO and link previews
+
+- **Set your domain** in `.env` → `VITE_SITE_URL=https://your-domain` (no trailing slash). The build
+  fills it into the canonical URL, Open Graph, Twitter and JSON-LD tags in `index.html`, and writes
+  `robots.txt` and `sitemap.xml` (see the `seoFiles` plugin in `vite.config.ts`). On Cloudflare Pages
+  you can instead set `VITE_SITE_URL` as a build environment variable.
+- **`index.html` contains:**
+  - Bengali title, description and keywords
+  - canonical and hreflang links
+  - Open Graph tags (`og:locale` `bn_BD`, 1200×630 image) and a Twitter `summary_large_image` card
+  - schema.org `VideoGame` structured data
+  - favicon, Apple touch icon and web app manifest (fullscreen, portrait)
+  - crawlable text on the loading screen
+- **Preview image and icons:** `public/og-image.png`, `icon-192/512.png`, `apple-touch-icon.png` and
+  `favicon.svg`. To change the preview art, edit `scripts/social/og.html` / `icon.html` and run
+  `npm run social-images`. This needs Google Chrome; set `CHROME=/path/to/chrome` if it's installed
+  somewhere else. It currently runs on macOS only, because it uses `sips` to resize the small icons.
+- **After deploying,** check the preview with Facebook's Sharing Debugger
+  (developers.facebook.com/tools/debug), which also refreshes its cache.
 
 ## Deploy to Cloudflare Pages
 

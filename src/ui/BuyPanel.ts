@@ -6,6 +6,7 @@ import { VEGETABLES, type VegId } from '../config/vegetables';
 import type { Game } from '../game/Game';
 import { formatBn, formatKg, formatTaka, formatTakaPerKg } from '../utils/bnNumber';
 import { button, el, esc, setText } from './dom';
+import { rich } from './icons';
 
 interface Row {
   veg: VegId;
@@ -47,12 +48,12 @@ export class BuyPanel {
     this.rows = [];
     const c = this.card;
     c.innerHTML = '';
-    el('div', 'bp-head', `<div class="bp-title">🌾 ${esc(farm.nameBn)}</div><div class="bp-quote">“${esc(farm.farmerLineBn)}”</div>`, c);
+    el('div', 'bp-head', `<div class="bp-title">{farm} ${esc(farm.nameBn)}</div><div class="bp-quote">“${esc(farm.farmerLineBn)}”</div>`, c);
     const list = el('div', 'bp-rows', '', c);
     for (const vegId of farm.vegetables) {
       const v = VEGETABLES[vegId];
       const r = el('div', 'bp-row', '', list);
-      el('div', 'bp-veg', `<span class="emo">${v.emoji}</span><div><b>${v.nameBn}</b><small>${formatTakaPerKg(v.farmPricePerKg)}</small></div>`, r);
+      el('div', 'bp-veg', `<span class="emo">${v.icon}</span><div><b>${v.nameBn}</b><small>${formatTakaPerKg(v.farmPricePerKg)}</small></div>`, r);
       const ctrl = el('div', 'bp-ctrl', '', r);
       const row = { veg: vegId, kg: 0 } as Row;
       row.minus = button('−', 'step', () => this.setKg(row, row.kg - ECONOMY.buyStepKg), ctrl);
@@ -83,8 +84,8 @@ export class BuyPanel {
 
     const btns = el('div', 'bp-buttons', '', c);
     button('বন্ধ করুন', 'btn btn-ghost', () => this.close(), btns);
-    const buy = button('কিনে নিন ✔', 'btn btn-buy', () => this.commit(), btns);
-    const go = button('কিনে রওনা দিন 🚚', 'btn btn-go', () => {
+    const buy = button('কিনে নিন {check}', 'btn btn-buy', () => this.commit(), btns);
+    const go = button('কিনে রওনা দিন {truck}', 'btn btn-go', () => {
       this.commit();
       this.close();
       this.game.depart();
@@ -143,7 +144,7 @@ export class BuyPanel {
     setText(e.load, `ট্রাকের লোড: ${formatKg(loadKg)} / ${formatBn(ECONOMY.truckCapacityKg)}`);
     e.loadFill.style.width = `${(loadKg / ECONOMY.truckCapacityKg) * 100}%`;
     const road = g.estimatedRoadCost();
-    e.road.innerHTML = `🛣️ রাস্তার আনুমানিক খরচ: টোল ${formatTaka(road.legal)} + চাঁদা ${formatTaka(road.chanda)}` +
+    e.road.innerHTML = rich(`{road} রাস্তার আনুমানিক খরচ: টোল ${formatTaka(road.legal)} + চাঁদা ${formatTaka(road.chanda)}`) +
       (cashLeft < road.legal + road.chanda ? ` <span class="warn-text">— নগদ কম পড়লে মাল দিয়ে দিতে হবে!</span>` : '');
     e.buy.disabled = p.kg <= 0;
     e.go.disabled = loadKg <= 0;

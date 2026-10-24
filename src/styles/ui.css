@@ -1,10 +1,22 @@
 /* ---------- shared ---------- */
 .hidden { display: none !important; }
 
+/* inline SVG icons that replace emoji */
+.ic { width: 1.2em; height: 1.2em; display: inline-block; vertical-align: -0.24em; flex: none; overflow: visible; }
+.icon-btn .ic { width: 22px; height: 22px; vertical-align: middle; }
+.tbtn .ic { width: 46%; height: 46%; }
+.p-icon .ic { width: 16px; height: 16px; }
+.pd-icon .ic { width: 44px; height: 44px; }
+.rot-icon .ic { width: 64px; height: 64px; }
+
 #boot {
-  position: fixed; inset: 0; display: grid; place-items: center;
-  background: var(--bg); color: var(--accent); font-size: 22px; font-weight: 700; z-index: 2000;
+  position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 24px; text-align: center; background: radial-gradient(ellipse at top, #4a2810, var(--bg) 70%);
 }
+#boot h1 { margin: 0; font-size: clamp(40px, 10vw, 72px); color: var(--accent); text-shadow: 0 4px 0 #6b2d0f; }
+#boot p { margin: 0; max-width: 620px; font-size: clamp(15px, 3.6vw, 20px); }
+#boot .boot-more { font-size: clamp(13px, 3vw, 15px); opacity: .7; }
+#boot .boot-loading { margin-top: 14px; color: var(--accent); font-weight: 700; animation: pulse 1.4s infinite; }
 
 .btn {
   font-family: var(--font-bn); font-weight: 700; font-size: clamp(14px, 2.2vw, 18px);

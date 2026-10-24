@@ -197,7 +197,7 @@ export class TollPlaza extends SetPiece<TollEvent> {
     if (!this.paid && !this.dialogOpen && g.state.phase === 'HIGHWAY') {
       if (!this.warned && front > S - EVENTS.tollWarnDistance && front < S) {
         this.warned = true;
-        g.hud.warn('🛑 সামনে টোল — গতি ২০-এর নিচে এনে থামুন', 'info', 4);
+        g.hud.warn('{stop} সামনে টোল — গতি ২০-এর নিচে এনে থামুন', 'info', 4);
         g.sound.beep();
       }
       if (front >= S && front < S + 15) {

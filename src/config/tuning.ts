@@ -67,8 +67,13 @@ export const ROAD = {
   top: 0.25,
   /** furthest the truck may drift from the centreline on open road */
   hardLimit: 14,
-  bridgeDeckHeight: 7,
-  bridgeRampLength: 180,
+  /** road deck height above the water and approach-ramp length, per bridge style */
+  bridgeStyles: {
+    jamuna: { deck: 7, ramp: 180 },
+    lalon: { deck: 7, ramp: 180 },
+    // Padma: road on top of a deep steel truss (railway deck inside), so it sits much higher
+    padma: { deck: 22, ramp: 440 },
+  },
   /** straight road kept before / after every event (set pieces sit on x = 0) */
   straightBefore: 260,
   straightAfter: 160,
@@ -122,6 +127,12 @@ export const TRAFFIC = {
   /** closing speed (km/h) above which hitting a heavy vehicle head-on ends the game */
   headOnGameOverKmh: 90,
   overtakerChance: 0.18,
+  /** horn taps a bus/truck needs before it gives way (or one long press) */
+  heavyHonks: 3,
+  /** seconds within which those taps must come */
+  heavyHonkWindow: 6,
+  /** seconds of continuous horn that count as a long press */
+  longHornSeconds: 1.2,
 } as const;
 
 export const CAMERA = {

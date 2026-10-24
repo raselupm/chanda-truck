@@ -3,6 +3,7 @@
 import type { CostCategory } from '../game/Ledger';
 import { formatKg, formatTaka } from '../utils/bnNumber';
 import { button, el, esc } from './dom';
+import { rich } from './icons';
 
 export interface ChargeLine {
   category: Exclude<CostCategory, 'PURCHASE' | 'CARGO_LOSS'>;
@@ -55,16 +56,16 @@ export class PaymentDialog {
       .map((l) => `<tr><td>${esc(l.labelBn)}</td><td class="num">${formatTaka(l.amount)}</td></tr>`)
       .join('');
     const short = preview.cashPart < preview.total;
-    this.card.innerHTML = `
+    this.card.innerHTML = rich(`
       <div class="pd-head"><span class="pd-icon">${t.icon}</span><div>
         <div class="pd-title">${esc(req.titleBn)}</div>
-        <div class="pd-loc">📍 ${esc(req.locationBn)}</div></div></div>
+        <div class="pd-loc">{pin} ${esc(req.locationBn)}</div></div></div>
       <div class="pd-msg">“${esc(req.messageBn)}”</div>
       <table class="pd-lines">${lines}
         <tr class="total"><td>মোট</td><td class="num">${formatTaka(preview.total)}</td></tr></table>
       <div class="pd-cash">আপনার নগদ: <b>${formatTaka(preview.cashBefore)}</b></div>
-      ${short ? `<div class="pd-inkind">⚠️ ${t.inKindNote(formatTaka(preview.cashPart), formatKg(preview.kgTaken))}</div>` : ''}
-      <div class="pd-receipt">${esc(t.receiptBn)}</div>`;
+      ${short ? `<div class="pd-inkind">{warning} ${t.inKindNote(formatTaka(preview.cashPart), formatKg(preview.kgTaken))}</div>` : ''}
+      <div class="pd-receipt">${esc(t.receiptBn)}</div>`);
     const pay = button(t.payLabel(formatTaka(preview.total)), 'btn btn-pay', () => this.pay(), this.card);
     this.overlay.classList.remove('hidden');
     setTimeout(() => pay.focus(), 50);

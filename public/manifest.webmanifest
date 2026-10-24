@@ -1,0 +1,19 @@
+{
+  "name": "সবজির ট্রাক — Sobjir Truck",
+  "short_name": "সবজির ট্রাক",
+  "description": "ক্ষেত থেকে কাওরান বাজার — চাঁদা, টোল আর জ্যাম পেরিয়ে সবজির ট্রাক চালানোর ব্যঙ্গাত্মক ৩ডি গেম।",
+  "lang": "bn",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#1a110b",
+  "theme_color": "#1a110b",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

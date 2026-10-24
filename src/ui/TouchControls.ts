@@ -13,10 +13,10 @@ export class TouchControls {
     this.root = el('div', 'touch hidden', '', parent);
     const left = el('div', 'touch-left', '', this.root);
     const right = el('div', 'touch-right', '', this.root);
-    this.pad(el('div', 'tbtn horn', '📯', left), 'horn');
+    this.pad(el('div', 'tbtn horn', '{horn}', left), 'horn');
     const steer = el('div', 'steer', '', left);
-    this.pad(el('div', 'tbtn steer-btn', '◀', steer), 'left');
-    this.pad(el('div', 'tbtn steer-btn', '▶', steer), 'right');
+    this.pad(el('div', 'tbtn steer-btn', '{left}', steer), 'left');
+    this.pad(el('div', 'tbtn steer-btn', '{right}', steer), 'right');
     this.pad(el('div', 'tbtn pedal brake', '<span>ব্রেক</span>', right), 'brake');
     this.pad(el('div', 'tbtn pedal gas', '<span>গ্যাস</span>', right), 'gas');
     if (!isTouchDevice) window.addEventListener('touchstart', () => this.enable(), { once: true });

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { LOOP, RENDER } from './config/tuning';
 import { Game } from './game/Game';
 import { DebugOverlay } from './ui/DebugOverlay';
+import { preloadIconImages } from './ui/icons';
 import { isMobile } from './utils/device';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -47,6 +48,8 @@ async function boot(): Promise<void> {
   } catch {
     /* fall back to system Bengali font */
   }
+  // SVG icons are drawn into canvas textures (signs, billboards), so load them as images first
+  await preloadIconImages();
   document.getElementById('boot')?.remove();
 
   const debug = new DebugOverlay(uiRoot, renderer);

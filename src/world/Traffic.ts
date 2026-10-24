@@ -35,6 +35,9 @@ interface Vehicle {
   art: THREE.Group;
   rear: THREE.Mesh | null;
   sides: THREE.Mesh[];
+  /** horn taps received (buses/trucks need several) and seconds until that count is forgotten */
+  honks: number;
+  honkTimer: number;
   /** >0 while pulled aside after the player honked */
   yieldTimer: number;
   homeD: number;
@@ -55,6 +58,15 @@ const SPEED_KMH: Record<TrafficKind, [number, number]> = {
   cng: [32, 42],
   rickshaw: [10, 15],
 };
+
+export interface HonkResult {
+  /** small vehicles that moved over */
+  small: number;
+  /** buses/trucks that finally moved over */
+  heavy: number;
+  /** a bus/truck that ignored this tap, with how many taps it has had */
+  stubborn: { kind: TrafficKind; count: number } | null;
+}
 
 const LAMP_GEO = new THREE.BoxGeometry(0.34, 0.2, 0.06);
 
@@ -97,7 +109,7 @@ export class Traffic {
         this.pool.push({
           active: false, kind, mesh: g, s: 0, d: 0, targetD: 0, speed: 0, cruise: 0, dir: 1,
           len: dims.len, wid: dims.wid, heavy: kind === 'bus' || kind === 'truck',
-          overtaker: false, overtakeState: 0, stalled: 0, hitCooldown: 0, hop: 0, yieldTimer: 0, homeD: 0,
+          overtaker: false, overtakeState: 0, stalled: 0, hitCooldown: 0, hop: 0, yieldTimer: 0, homeD: 0, honks: 0, honkTimer: 0,
           art: art.group, rear: art.rear, sides: art.sides,
         });
       }
@@ -144,14 +156,16 @@ export class Traffic {
   }
 
   /**
-   * Player honked: the vehicle in front moves aside (inner lane → outer lane, outer lane → shoulder),
-   * and an oncoming bus overtaking in our lane ducks back early.
-   * Returns how many vehicles gave way.
+   * One horn press ('tap') or a long press ('long').
+   * The vehicle in front swaps lanes to let the truck through: right lane → left, left lane → right.
+   * Small vehicles (car, CNG, rickshaw) move on the first tap; buses and trucks only after
+   * TRAFFIC.heavyHonks taps (within a few seconds) or a long press.
+   * An oncoming bus overtaking in our lane ducks back on any horn.
    */
-  honk(): number {
+  honk(press: 'tap' | 'long'): HonkResult {
     const g = this.game;
     const t = g.truck;
-    let n = 0;
+    const res: HonkResult = { small: 0, heavy: 0, stubborn: null };
     for (const v of this.pool) {
       if (!v.active || v.stalled > 0) continue;
       if (v.dir === -1) {
@@ -163,14 +177,29 @@ export class Traffic {
       }
       const gap = v.s - t.s;
       if (gap <= 0 || gap > 140 || Math.abs(v.d - t.d) > 2.6 || v.yieldTimer > 0) continue;
+      if (v.heavy && press === 'tap') {
+        v.honks++;
+        v.honkTimer = TRAFFIC.heavyHonkWindow;
+        if (v.honks < TRAFFIC.heavyHonks) {
+          res.stubborn = { kind: v.kind, count: v.honks };
+          continue;
+        }
+      }
       const hw = g.track.halfWidth(v.s);
-      if (g.track.bridgeAt(v.s) && v.d < -hw * 0.5) continue; // no shoulder on the bridge
+      const target = v.d > -hw * 0.5 ? -0.75 * hw : -0.25 * hw;
+      // only if the other lane is free next to it
+      const blocked = this.pool.some(
+        (o) => o !== v && o.active && o.dir === 1 && Math.abs(o.d - target) < 1.6 && Math.abs(o.s - v.s) < (o.len + v.len) / 2 + 6,
+      );
+      if (blocked) continue;
       v.homeD = v.d;
-      v.targetD = v.d > -hw * 0.5 ? -0.75 * hw : -(hw + 0.6);
+      v.targetD = target;
       v.yieldTimer = 8;
-      n++;
+      v.honks = 0;
+      if (v.heavy) res.heavy++;
+      else res.small++;
     }
-    return n;
+    return res;
   }
 
   /** Turn vehicle lamps on in the dark. */
@@ -277,6 +306,8 @@ export class Traffic {
     v.hop = 0;
     v.yieldTimer = 0;
     v.homeD = d;
+    v.honks = 0;
+    v.honkTimer = 0;
     v.mesh.visible = true;
     this.paint(v);
     v.mesh.rotation.set(0, dir === 1 ? 0 : Math.PI, 0);
@@ -329,12 +360,13 @@ export class Traffic {
           v.overtakeState = 1;
           v.targetD = -0.25 * hw;
           g.sound.otherHorn();
-          g.hud.toast('⚠️ উল্টো দিক থেকে বাস আপনার লেনে ওভারটেক করছে!');
+          g.hud.toast('{warning} উল্টো দিক থেকে বাস আপনার লেনে ওভারটেক করছে!');
         } else if (v.overtakeState === 1 && gap < 200) {
           v.overtakeState = 2;
           v.targetD = 0.25 * hw;
         }
       }
+      if (v.honkTimer > 0 && (v.honkTimer -= dt) <= 0) v.honks = 0;
       // Pulled aside for the horn: crawl on the side until the truck has passed, then merge back
       if (v.yieldTimer > 0) {
         v.yieldTimer -= dt;
@@ -404,7 +436,7 @@ export class Traffic {
         g.damageCargo(v.dir === -1 ? pct.headOnLight : clamp(closing * pct.rearEndPerKmh, 0.3, pct.rearEndMax), 'সংঘর্ষে মাল নষ্ট', 'মহাসড়ক');
         if (!v.heavy) this.knockAside(v, t.d);
         else v.speed += 2;
-        g.hud.toast('💥 ধাক্কা! মাল পড়ে গেল');
+        g.hud.toast('{crash} ধাক্কা! মাল পড়ে গেল');
       } else {
         // rear-ended by a faster vehicle
         g.cam.shake(0.4);

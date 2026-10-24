@@ -52,7 +52,7 @@ export class Bridge extends SetPiece<TollEvent> {
     const { start, end, style, nameBn } = this.span;
     const len = end - start;
     const hw = track.halfWidth(start);
-    const deckY = ROAD.bridgeDeckHeight + ROAD.top;
+    const deckY = this.span.deck + ROAD.top;
     const edge = hw + 1.0;
     const mat = vertexColorMaterial();
     const padma = style === 'padma';
@@ -78,9 +78,13 @@ export class Bridge extends SetPiece<TollEvent> {
 
     // Piers + railings + lamps (merged: the bridge is straight at x = 0)
     const parts: Part[] = [];
-    for (let s = start + 25; s < end - 10; s += 50) {
-      for (const d of [-hw * 0.55, hw * 0.55]) parts.push({ geo: cyl(1.0, 1.2, deckY - 1.9 + 2, 10), color: 0xb9b3a6, p: [d, (deckY - 1.9 - 2) / 2, -s] });
-      parts.push({ geo: box(edge * 2 - 1, 1.2, 2.2), color: 0xaaa497, p: [0, deckY - 2.4, -s] });
+    const slab = deckY - 1.9; // underside of the road slab
+    if (!padma) {
+      // Concrete box-girder bridge on twin round piers every 50 m
+      for (let s = start + 25; s < end - 10; s += 50) {
+        for (const d of [-hw * 0.55, hw * 0.55]) parts.push({ geo: cyl(1.0, 1.2, slab + 2, 10), color: 0xb9b3a6, p: [d, (slab - 2) / 2, -s] });
+        parts.push({ geo: box(edge * 2 - 1, 1.2, 2.2), color: 0xaaa497, p: [0, slab - 0.5, -s] });
+      }
     }
     for (const side of [-1, 1]) {
       parts.push({ geo: box(0.4, 0.5, len), color: 0xd8d2c4, p: [side * (edge - 0.2), deckY + 0.25, -(start + len / 2)] });
@@ -88,45 +92,85 @@ export class Bridge extends SetPiece<TollEvent> {
       parts.push({ geo: box(0.1, 0.1, len), color: 0x7d8a96, p: [side * (edge - 0.2), deckY + 0.8, -(start + len / 2)] });
       for (let s = start; s <= end; s += 3) parts.push({ geo: box(0.1, 0.7, 0.1), color: 0x7d8a96, p: [side * (edge - 0.2), deckY + 0.85, -s] });
     }
-    for (let s = start + 10, k = 0; s < end; s += 40, k++) {
-      const side = k % 2 ? 1 : -1;
-      parts.push({ geo: cyl(0.09, 0.12, 8, 6), color: 0x9aa3ab, p: [side * (edge - 0.2), deckY + 4, -s] });
-      parts.push({ geo: box(1.6, 0.1, 0.12), color: 0x9aa3ab, p: [side * (edge - 0.9), deckY + 8, -s] });
-      parts.push({ geo: box(0.5, 0.15, 0.3), color: 0xfff3c0, p: [side * (edge - 1.6), deckY + 7.9, -s] });
+    // Lamp posts: Padma has them on both sides in pairs, the others alternate sides
+    for (let s = start + 10, k = 0; s < end; s += padma ? 50 : 40, k++) {
+      for (const side of padma ? [-1, 1] : [k % 2 ? 1 : -1]) {
+        parts.push({ geo: cyl(0.09, 0.12, 8, 6), color: 0x9aa3ab, p: [side * (edge - 0.2), deckY + 4, -s] });
+        parts.push({ geo: box(1.6, 0.1, 0.12), color: 0x9aa3ab, p: [side * (edge - 0.9), deckY + 8, -s] });
+        parts.push({ geo: box(0.5, 0.15, 0.3), color: 0xfff3c0, p: [side * (edge - 1.6), deckY + 7.9, -s] });
+      }
     }
     if (padma) {
-      // Steel truss under the deck (Padma style double-deck look)
-      const lower = deckY - 6.5;
+      // Padma Setu: double-deck steel Warren truss. The road runs on top; the railway deck is
+      // enclosed inside the truss box below it. Massive piers every ~150 m.
+      const D = 10; // truss depth
+      const top = slab;
+      const bot = top - D;
+      const tx = hw - 0.4; // truss planes
+      const panel = 12.5;
+      const steel = 0x8d969c;
+      const steelDark = 0x737c82;
+      const diagLen = Math.hypot(panel, D);
+      const ang = Math.atan2(panel, D);
       for (const side of [-1, 1]) {
-        const x = side * (edge - 0.3);
-        parts.push({ geo: box(0.4, 0.4, len), color: 0x9b9f9a, p: [x, lower, -(start + len / 2)] });
-        for (let s = start; s < end; s += 12) {
-          parts.push({ geo: box(0.3, 0.3, 7.6), color: 0xa8aca6, p: [x, (lower + deckY - 1.9) / 2, -(s + 6)], r: [(s / 12) % 2 ? 0.6 : -0.6, 0, 0] });
-          parts.push({ geo: box(0.3, deckY - 1.9 - lower, 0.3), color: 0xa8aca6, p: [x, (lower + deckY - 1.9) / 2, -s] });
+        const x = side * tx;
+        parts.push({ geo: box(0.9, 0.9, len), color: steel, p: [x, top - 0.45, -(start + len / 2)] });
+        parts.push({ geo: box(0.9, 1.1, len), color: steel, p: [x, bot + 0.55, -(start + len / 2)] });
+        let k = 0;
+        for (let s = start; s + panel <= end + 0.01; s += panel, k++) {
+          parts.push({ geo: box(0.55, diagLen, 0.55), color: steel, p: [x, (top + bot) / 2, -(s + panel / 2)], r: [k % 2 ? ang : -ang, 0, 0] });
+          parts.push({ geo: box(0.45, D, 0.45), color: steelDark, p: [x, (top + bot) / 2, -s] });
         }
+      }
+      // cross girders top and bottom + the enclosed railway deck with two tracks
+      for (let s = start; s <= end; s += panel) {
+        parts.push({ geo: box(tx * 2, 0.5, 0.5), color: steelDark, p: [0, top - 0.6, -s] });
+        parts.push({ geo: box(tx * 2, 0.6, 0.6), color: steelDark, p: [0, bot + 0.3, -s] });
+      }
+      parts.push({ geo: box(tx * 2 - 0.6, 0.5, len), color: 0xa9a49a, p: [0, bot + 0.75, -(start + len / 2)] });
+      for (const rx of [-2.3, -0.8, 0.8, 2.3]) parts.push({ geo: box(0.12, 0.15, len), color: 0x5d5d5d, p: [rx, bot + 1.08, -(start + len / 2)] });
+      // Piers: tall concrete columns with a wide cap under the bottom chord
+      for (let s = start + 75; s < end - 30; s += 150) {
+        const h = bot + 2;
+        parts.push({ geo: box(tx * 2 + 4, 2, 6), color: 0xb4aea0, p: [0, bot - 1, -s] });
+        for (const d of [-tx * 0.45, tx * 0.45]) parts.push({ geo: box(3.4, h, 3.4), color: 0xc2bcae, p: [d, (bot - 2) / 2 - 1, -s] });
       }
     }
     const structure = new THREE.Mesh(buildColored(parts), mat);
     structure.frustumCulled = false;
     this.group.add(structure);
 
-    // Name arch at the bridge start
-    const arch = new THREE.Mesh(
-      buildColored([
-        { geo: box(0.6, 10, 0.6), color: 0xe8e4da, p: [-edge - 0.5, 5, 0] },
-        { geo: box(0.6, 10, 0.6), color: 0xe8e4da, p: [edge + 0.5, 5, 0] },
-        { geo: box(edge * 2 + 1.6, 0.5, 0.6), color: 0xe8e4da, p: [0, 10.2, 0] },
-      ]),
-      mat,
-    );
-    arch.position.copy(this.at(start - 4, 0, ROAD.top));
-    this.group.add(arch);
-    const nameBoard = this.own(new THREE.Mesh(
-      new THREE.PlaneGeometry(9, 1.6),
-      new THREE.MeshLambertMaterial({ map: signTexture([`${nameBn}-এ স্বাগতম`], { bg: '#1f7a3d', fg: '#fff', w: 1024, h: 180, sizes: [90] }) }),
-    ));
-    nameBoard.position.copy(this.at(start - 4.35, 0, ROAD.top + 9.2));
-    this.group.add(nameBoard);
+    // Name: an arch over the road (Jamuna, Lalon) or a big roadside monument (Padma)
+    const nameTex = signTexture([`${nameBn}-এ স্বাগতম`], { bg: '#1f7a3d', fg: '#fff', w: 1024, h: 180, sizes: [90] });
+    if (padma) {
+      const mono = new THREE.Mesh(
+        buildColored([
+          { geo: box(10, 4, 1.2), color: 0xe8e4da, p: [0, 2.6, 0] },
+          { geo: box(10.6, 0.6, 1.6), color: 0x8d969c, p: [0, 0.3, 0] },
+        ]),
+        mat,
+      );
+      mono.position.copy(this.at(start - this.span.ramp - 30, -(hw + 9), 0));
+      mono.rotation.y = 0.35;
+      const board = this.own(new THREE.Mesh(new THREE.PlaneGeometry(9.2, 1.6), new THREE.MeshLambertMaterial({ map: nameTex })));
+      board.position.set(0, 3.1, 0.62);
+      mono.add(board);
+      this.group.add(mono);
+    } else {
+      const arch = new THREE.Mesh(
+        buildColored([
+          { geo: box(0.6, 10, 0.6), color: 0xe8e4da, p: [-edge - 0.5, 5, 0] },
+          { geo: box(0.6, 10, 0.6), color: 0xe8e4da, p: [edge + 0.5, 5, 0] },
+          { geo: box(edge * 2 + 1.6, 0.5, 0.6), color: 0xe8e4da, p: [0, 10.2, 0] },
+        ]),
+        mat,
+      );
+      arch.position.copy(this.at(start - 4, 0, ROAD.top));
+      this.group.add(arch);
+      const nameBoard = this.own(new THREE.Mesh(new THREE.PlaneGeometry(9, 1.6), new THREE.MeshLambertMaterial({ map: nameTex })));
+      nameBoard.position.copy(this.at(start - 4.35, 0, ROAD.top + 9.2));
+      this.group.add(nameBoard);
+    }
 
     // Boats
     this.boatMesh = new THREE.InstancedMesh(boatHullGeometry(), mat, 10);

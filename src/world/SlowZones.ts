@@ -14,9 +14,9 @@ import { signPost } from './SetPiece';
 
 const ZONE_INFO: Record<SlowZone['kind'], { icon: string; enterBn: string; signLines: string[]; bg: string; lines: string[] }> = {
   school: {
-    icon: '🏫',
+    icon: '{school}',
     enterBn: 'স্কুল এলাকা — ধীরে চলুন',
-    signLines: ['🏫 সামনে স্কুল', 'ধীরে চলুন'],
+    signLines: ['{school} সামনে স্কুল', 'ধীরে চলুন'],
     bg: '#ffd23f',
     lines: [
       'আস্তে! স্কুলের বাচ্চারা রাস্তা পার হয়।',
@@ -25,9 +25,9 @@ const ZONE_INFO: Record<SlowZone['kind'], { icon: string; enterBn: string; signL
     ],
   },
   bazar: {
-    icon: '🛒',
+    icon: '{cart}',
     enterBn: 'বাজার এলাকা — ধীরে চলুন',
-    signLines: ['🛒 বাজার এলাকা', 'ধীরে চলুন'],
+    signLines: ['{cart} বাজার এলাকা', 'ধীরে চলুন'],
     bg: '#ffffff',
     lines: [
       'বাজারে ধীরে! মুরগিও আপনার চেয়ে ধীরে দৌড়ায়।',
@@ -36,9 +36,9 @@ const ZONE_INFO: Record<SlowZone['kind'], { icon: string; enterBn: string; signL
     ],
   },
   market: {
-    icon: '🥬',
+    icon: '{cabbage}',
     enterBn: 'কাঁচাবাজার এলাকা — ধীরে চলুন',
-    signLines: ['🥬 কাওরান বাজার এলাকা', 'ধীরে চলুন'],
+    signLines: ['{cabbage} কাওরান বাজার এলাকা', 'ধীরে চলুন'],
     bg: '#ffffff',
     lines: ['কাঁচাবাজার — এখানে দাম দৌড়ায়, গাড়ি না।', 'আস্তে! টমেটোর ঝুড়ি মাথায় লোক যাচ্ছে।'],
   },
@@ -163,7 +163,7 @@ export class SlowZones {
     this.warnCooldown -= dt;
     if (now && info && Math.abs(tr.kmh) > now.limitKmh + SLOW_ZONES.tolerance && this.warnCooldown <= 0 && !g.chase.active && !g.modal) {
       this.warnCooldown = 5;
-      g.hud.warn(`🐢 ধীরে! ${info.lines[Math.floor(Math.random() * info.lines.length)]}`, 'danger', 2.8);
+      g.hud.warn(`{turtle} ধীরে! ${info.lines[Math.floor(Math.random() * info.lines.length)]}`, 'danger', 2.8);
       g.sound.beep();
     }
   }

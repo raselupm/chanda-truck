@@ -53,7 +53,7 @@ function speedometerSvg(): string {
   </svg>`;
 }
 
-const ICON: Record<string, string> = { farm: '🌾', barrier: '✋', roadTax: '🧾', roadToll: '🧾', bridgeToll: '🌉', rail: '🚆', market: '🛒' };
+const ICON: Record<string, string> = { farm: '{farm}', barrier: '{hand}', roadTax: '{receipt}', roadToll: '{receipt}', bridgeToll: '{bridge}', rail: '{train}', market: '{cart}' };
 
 export class HUD {
   readonly root: HTMLDivElement;
@@ -93,26 +93,26 @@ export class HUD {
       const r = el('div', 'stat', `<span class="ic">${icon}</span><span class="lb">${label}</span>`, stats);
       return el('span', 'val', '', r);
     };
-    this.cash = row('💰', 'নগদ');
-    this.kg = row('📦', 'মাল');
-    this.perKg = row('⚖️', 'কেজিপ্রতি খরচ');
-    this.chanda = row('✋', 'চাঁদা মোট');
+    this.cash = row('{money}', 'নগদ');
+    this.kg = row('{box}', 'মাল');
+    this.perKg = row('{scale}', 'কেজিপ্রতি খরচ');
+    this.chanda = row('{hand}', 'চাঁদা মোট');
 
     const top = el('div', 'hud-top', '', this.root);
     this.progressBar = el('div', 'progress', '', top);
     this.progressFill = el('div', 'progress-fill', '', this.progressBar);
-    this.progressTruck = el('div', 'progress-truck', '🚚', this.progressBar);
+    this.progressTruck = el('div', 'progress-truck', '{truck}', this.progressBar);
     this.next = el('div', 'next-event', '', top);
-    this.departBtn = button('শহরের দিকে রওনা 🚚', 'btn btn-go depart', () => game.depart(), top);
+    this.departBtn = button('শহরের দিকে রওনা {truck}', 'btn btn-go depart', () => game.depart(), top);
     this.farmHint = el('div', 'farm-hint', 'ক্ষেতের পাশের সবুজ জায়গায় থামুন — সবজি কিনুন', top);
 
     const btns = el('div', 'hud-buttons', '', this.root);
     this.weatherEl = el('div', 'weather-chip', '', btns);
-    this.muteBtn = button(game.sound.muted ? '🔇' : '🔊', 'icon-btn', () => game.sound.toggleMute(), btns);
+    this.muteBtn = button(game.sound.muted ? '{mute}' : '{sound}', 'icon-btn', () => game.sound.toggleMute(), btns);
     this.muteBtn.title = 'শব্দ (M)';
-    game.sound.onMuteChange((m) => (this.muteBtn.textContent = m ? '🔇' : '🔊'));
-    button('🎥', 'icon-btn', () => game.toggleCamera(), btns).title = 'ক্যামেরা (C)';
-    button('⏸', 'icon-btn', () => game.togglePause(), btns).title = 'বিরতি (P)';
+    game.sound.onMuteChange((m) => setText(this.muteBtn, m ? '{mute}' : '{sound}'));
+    button('{camera}', 'icon-btn', () => game.toggleCamera(), btns).title = 'ক্যামেরা (C)';
+    button('{pause}', 'icon-btn', () => game.togglePause(), btns).title = 'বিরতি (P)';
 
     this.speedo = el('div', 'speedo', speedometerSvg(), this.root);
     this.limitBadge = el('div', 'limit-badge hidden', '', this.speedo);
@@ -147,20 +147,20 @@ export class HUD {
   }
 
   warn(text: string, kind: 'danger' | 'info' | 'good', seconds = 3): void {
-    this.warnEl.textContent = text;
+    setText(this.warnEl, text);
     this.warnEl.className = `warn show ${kind}`;
     this.warnTimer = seconds;
   }
 
   toast(text: string, seconds = 2.5): void {
-    this.toastEl.textContent = text;
+    setText(this.toastEl, text);
     this.toastEl.classList.add('show');
     this.toastTimer = seconds;
   }
 
   floatText(text: string, kind: 'bad' | 'good' | 'legal' = 'bad'): void {
     const f = el('div', `float ${kind}`, '', this.floats);
-    f.textContent = text;
+    setText(f, text);
     setTimeout(() => f.remove(), 2600);
   }
 
@@ -201,7 +201,7 @@ export class HUD {
         const e = nextPiece.event;
         setText(this.next, `${ICON[e.type] ?? ''} ${e.nameBn} · ${formatDistance(nextPiece.s - t.frontS)}`);
       } else {
-        setText(this.next, phase === 'FARM' ? '🌾 গ্রামের ক্ষেত — সবজি কিনুন' : '');
+        setText(this.next, phase === 'FARM' ? '{farm} গ্রামের ক্ষেত — সবজি কিনুন' : '');
       }
     }
 

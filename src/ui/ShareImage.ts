@@ -3,7 +3,7 @@
 import { VEGETABLES } from '../config/vegetables';
 import type { ResultData } from '../game/Results';
 import { formatBn, formatTaka } from '../utils/bnNumber';
-import { FONT_BN } from '../utils/textures';
+import { fillRich, FONT_BN } from '../utils/textures';
 import { BREAKDOWN_LABELS, CATEGORY_COLORS, outcomeLine } from './ResultReport';
 
 const W = 1080;
@@ -36,15 +36,15 @@ export async function renderShareImage(r: ResultData): Promise<Blob | null> {
   ctx.textAlign = 'left';
   ctx.fillStyle = '#f2a03d';
   ctx.font = font(700, 64);
-  ctx.fillText('📋 যাত্রার হিসাব', M, 140);
+  fillRich(ctx, '{clipboard} যাত্রার হিসাব', M, 140);
   ctx.fillStyle = MUTED;
   ctx.font = font(500, 28);
-  ctx.fillText('সবজির ট্রাক', M, 186);
+  fillRich(ctx, 'সবজির ট্রাক', M, 186);
 
   const o = outcomeLine(r);
   ctx.fillStyle = arrived ? '#8bd17c' : '#ff6b5a';
   ctx.font = font(700, 34);
-  ctx.fillText(`${o.icon} ${o.text}`, M, 250);
+  fillRich(ctx, `${o.icon} ${o.text}`, M, 250);
 
   // Key numbers: 2 × 2 tiles
   const tiles: [string, string, string][] = [
@@ -63,17 +63,17 @@ export async function renderShareImage(r: ResultData): Promise<Blob | null> {
     ctx.fill();
     ctx.fillStyle = MUTED;
     ctx.font = font(500, 26);
-    ctx.fillText(label, x + 24, y + 44);
+    fillRich(ctx, label, x + 24, y + 44);
     ctx.fillStyle = color;
     ctx.font = font(700, 46);
-    ctx.fillText(value, x + 24, y + 104);
+    fillRich(ctx, value, x + 24, y + 104);
   });
 
   // Cost breakdown bar + legend
   let y = 650;
   ctx.fillStyle = FG;
   ctx.font = font(700, 34);
-  ctx.fillText(`খরচের ভাগ — মোট ${formatTaka(r.totalCash)}`, M, y);
+  fillRich(ctx, `খরচের ভাগ — মোট ${formatTaka(r.totalCash)}`, M, y);
   y += 24;
   const keys = Object.keys(CATEGORY_COLORS) as (keyof typeof CATEGORY_COLORS)[];
   const total = r.totalCash || 1;
@@ -92,9 +92,9 @@ export async function renderShareImage(r: ResultData): Promise<Blob | null> {
     ctx.fillRect(M, y - 22, 24, 24);
     ctx.fillStyle = FG;
     ctx.textAlign = 'left';
-    ctx.fillText(BREAKDOWN_LABELS[k], M + 40, y);
+    fillRich(ctx, BREAKDOWN_LABELS[k], M + 40, y);
     ctx.textAlign = 'right';
-    ctx.fillText(`${formatTaka(r.breakdown[k])}  (${formatBn((r.breakdown[k] / total) * 100, 0)}%)`, W - M, y);
+    fillRich(ctx, `${formatTaka(r.breakdown[k])}  (${formatBn((r.breakdown[k] / total) * 100, 0)}%)`, W - M, y);
     y += 44;
   }
   ctx.textAlign = 'left';
@@ -107,7 +107,7 @@ export async function renderShareImage(r: ResultData): Promise<Blob | null> {
     ctx.font = font(700, 26);
     ['সবজি', 'ক্ষেতে', 'আপনার খরচ', 'কাওরান বাজার'].forEach((h, i) => {
       ctx.textAlign = i === 3 ? 'right' : 'left';
-      ctx.fillText(h, cols[i], y);
+      fillRich(ctx, h, cols[i], y);
     });
     y += 46;
     ctx.font = font(500, 28);
@@ -115,9 +115,9 @@ export async function renderShareImage(r: ResultData): Promise<Blob | null> {
     for (const row of r.rows) {
       if (y > H - 90) break;
       const v = VEGETABLES[row.veg];
-      [`${v.emoji} ${v.nameBn}`, perKg(row.farmPrice), perKg(row.landedPerKg), perKg(row.marketPrice)].forEach((cell, i) => {
+      [`${v.icon} ${v.nameBn}`, perKg(row.farmPrice), perKg(row.landedPerKg), perKg(row.marketPrice)].forEach((cell, i) => {
         ctx.textAlign = i === 3 ? 'right' : 'left';
-        ctx.fillText(cell, cols[i], y);
+        fillRich(ctx, cell, cols[i], y);
       });
       y += 42;
     }

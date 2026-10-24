@@ -126,7 +126,7 @@ export class Farm extends SetPiece<FarmEvent> {
 
     // Name sign
     const sign = signPost(
-      signTexture([event.nameBn, vegs.map((v) => VEGETABLES[v].emoji + ' ' + VEGETABLES[v].nameBn).join('  ')], {
+      signTexture([event.nameBn, vegs.map((v) => VEGETABLES[v].icon + ' ' + VEGETABLES[v].nameBn).join('  ')], {
         bg: '#f6efe0', fg: '#3b2a1a', border: '#3f8f2a', sizes: [64, 40],
       }),
       3.2, 1.6, 1.6,

@@ -1,7 +1,7 @@
 // Money rules. All values in ৳ unless noted. Tune freely.
 
 export const ECONOMY = {
-  startingCash: 80_000,
+  startingCash: 150_000,
   truckCapacityKg: 5_000,
   /** BuyPanel stepper increment */
   buyStepKg: 50,

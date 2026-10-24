@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Sound } from '../audio/Sound';
 import { ECONOMY } from '../config/economy';
+import { TRAFFIC } from '../config/tuning';
 import { DEFAULT_START_ID, generateRoute, START_POINTS, type FarmEvent, type RouteDef } from '../config/route';
 import { VEGETABLES, type VegId } from '../config/vegetables';
 import { BuyPanel } from '../ui/BuyPanel';
@@ -14,7 +15,7 @@ import type { ChargePreview, PaymentRequest } from '../ui/PaymentDialog';
 import { ResultReport } from '../ui/ResultReport';
 import { TollDialog } from '../ui/TollDialog';
 import { TouchControls } from '../ui/TouchControls';
-import { formatKg, formatTaka } from '../utils/bnNumber';
+import { formatKg, formatTaka, toBnDigits } from '../utils/bnNumber';
 import { CameraRig } from '../vehicle/CameraRig';
 import { Chasers } from '../vehicle/Chasers';
 import { MAX_CRATES, Truck } from '../vehicle/Truck';
@@ -26,14 +27,14 @@ import { Environment } from '../world/Environment';
 import { Pedestrians } from '../world/Pedestrians';
 import { RailCrossing } from '../world/RailCrossing';
 import { SlowZones } from '../world/SlowZones';
-import { Weather, WEATHER_LABEL } from '../world/Weather';
+import { Weather } from '../world/Weather';
 import { Farm } from '../world/Farm';
 import { RoadStreamer } from '../world/RoadStreamer';
 import { Scenery } from '../world/Scenery';
 import type { SetPiece } from '../world/SetPiece';
 import { TollPlaza } from '../world/TollPlaza';
 import { Track } from '../world/Track';
-import { Traffic } from '../world/Traffic';
+import { Traffic, type HonkResult } from '../world/Traffic';
 import { Cargo } from './Cargo';
 import { GameState } from './GameState';
 import { Input, NO_INPUT, type DriveInput } from './Input';
@@ -92,7 +93,9 @@ export class Game {
   private endTimer = -1;
   private pendingOutcome: Outcome | null = null;
   private farmWallCooldown = 0;
-  private honkCooldown = 0;
+  private wasHonking = false;
+  private hornHeld = 0;
+  private longHornSent = false;
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, uiRoot: HTMLElement, private debug: DebugOverlay) {
     this.track = new Track(this.route);
@@ -133,9 +136,6 @@ export class Game {
       else if (this.tollDialog.isOpen) this.tollDialog.pay();
     });
     this.weather.onThunder((delay) => this.sound.thunder(delay));
-    this.weather.onChange((k) => {
-      if (this.state.phase === 'FARM' || this.state.phase === 'HIGHWAY') this.hud.toast(`আবহাওয়া বদলাচ্ছে: ${WEATHER_LABEL[k]}`, 3);
-    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && !this.state.paused) this.togglePause();
     });
@@ -235,7 +235,7 @@ export class Game {
     this.hud.setRoute(this.route);
     this.hud.show(true);
     this.touch.show(true);
-    this.hud.warn('🌾 ক্ষেতের পাশের সবুজ জায়গায় থেমে সবজি কিনুন', 'info', 4);
+    this.hud.warn('{farm} ক্ষেতের পাশের সবুজ জায়গায় থেমে সবজি কিনুন', 'info', 4);
   }
 
   depart(): void {
@@ -244,7 +244,7 @@ export class Game {
     this.state.set('HIGHWAY');
     const market = this.route.events.find((e) => e.type === 'market');
     this.truck.maxFrontS = (market?.s ?? this.track.length) + 30;
-    this.hud.warn('🚚 ঢাকার পথে রওনা! সাবধানে চালান', 'good', 3);
+    this.hud.warn('{truck} ঢাকার পথে রওনা! সাবধানে চালান', 'good', 3);
   }
 
   goHome(): void {
@@ -286,7 +286,7 @@ export class Game {
     this.cargo.add(veg, kg, v.farmPricePerKg);
     this.ledger.add({ category: 'PURCHASE', amount: cost, cash: true, kg, labelBn: `${v.nameBn} ${formatKg(kg)}`, locationBn, t: this.runTime });
     this.sound.coin();
-    this.hud.floatText(`${v.emoji} +${formatKg(kg)}`, 'good');
+    this.hud.floatText(`${v.icon} +${formatKg(kg)}`, 'good');
     this.refreshCrates();
   }
 
@@ -359,7 +359,7 @@ export class Game {
         req.kind === 'chanda' ? 'bad' : 'legal',
       );
     }
-    if (kgTaken > 0) this.hud.toast(`🥬 নগদ শেষ — ${formatKg(kgTaken)} মাল নামিয়ে নিল`, 3.5);
+    if (kgTaken > 0) this.hud.toast(`{cabbage} নগদ শেষ — ${formatKg(kgTaken)} মাল নামিয়ে নিল`, 3.5);
   }
 
   damageCargo(pct: number, labelBn: string, locationBn: string): void {
@@ -368,6 +368,15 @@ export class Game {
     this.ledger.add({ category: 'CARGO_LOSS', amount: removed.value, cash: false, kg: removed.kg, labelBn, locationBn, t: this.runTime });
     this.hud.floatText(`-${formatKg(removed.kg)} মাল নষ্ট`, 'bad');
     this.refreshCrates();
+  }
+
+  private reactToHorn(r: HonkResult): void {
+    if (r.heavy > 0) this.hud.toast('{bus} বড় গাড়িও অবশেষে সাইড দিল!');
+    else if (r.small > 0) this.hud.toast('{horn} সামনের গাড়ি সাইড দিল');
+    else if (r.stubborn) {
+      const name = r.stubborn.kind === 'bus' ? 'বাস' : 'ট্রাক';
+      this.hud.toast(`${name === 'বাস' ? '{bus}' : '{truck}'} ${name} সাইড দিচ্ছে না — আরও হর্ন দিন (${toBnDigits(r.stubborn.count)}/${toBnDigits(TRAFFIC.heavyHonks)}) বা লম্বা হর্ন`, 2.5);
+    }
   }
 
   // ---------------------------------------------------------------- events
@@ -392,7 +401,7 @@ export class Game {
     this.truck.stop();
     this.sound.horn(false);
     this.chase.reset();
-    this.hud.warn(reason === 'crash' ? '💥 ভয়াবহ সংঘর্ষ!' : '🚨 টোল প্লাজা ভাঙার চেষ্টা — ট্রাক জব্দ!', 'danger', 3);
+    this.hud.warn(reason === 'crash' ? '{crash} ভয়াবহ সংঘর্ষ!' : '{siren} টোল প্লাজা ভাঙার চেষ্টা — ট্রাক জব্দ!', 'danger', 3);
     if (reason === 'toll') this.sound.whistle();
     this.pendingOutcome = reason;
     this.endTimer = 1.8;
@@ -402,7 +411,7 @@ export class Game {
     if (this.state.phase !== 'HIGHWAY') return;
     this.state.set('ARRIVAL');
     this.sound.crowd(2);
-    this.hud.warn('🛒 কাওরান বাজারে পৌঁছেছেন!', 'good', 3);
+    this.hud.warn('{cart} কাওরান বাজারে পৌঁছেছেন!', 'good', 3);
     this.pendingOutcome = 'arrived';
     this.endTimer = 2.6;
   }
@@ -452,17 +461,23 @@ export class Game {
         this.slowZones.update(dt);
         const honking = this.input.horn && !this.modal && phase !== 'ARRIVAL';
         this.sound.horn(honking);
-        // Horn: the vehicle ahead gives way (re-checked every second while held)
-        this.honkCooldown -= dt;
-        if (honking && this.honkCooldown <= 0 && phase === 'HIGHWAY') {
-          this.honkCooldown = 1;
-          if (this.traffic.honk() > 0) this.hud.toast('📯 সামনের গাড়ি সাইড দিল');
+        // Horn: each press is a tap; holding it counts as a long press (buses & trucks need that or 3 taps)
+        if (honking && phase === 'HIGHWAY') {
+          if (!this.wasHonking) this.reactToHorn(this.traffic.honk('tap'));
+          this.hornHeld += dt;
+          if (this.hornHeld >= TRAFFIC.longHornSeconds && !this.longHornSent) {
+            this.longHornSent = true;
+            this.reactToHorn(this.traffic.honk('long'));
+          }
+        } else {
+          this.hornHeld = 0;
+          this.longHornSent = false;
         }
-        if (!honking) this.honkCooldown = 0;
+        this.wasHonking = honking;
         this.farmWallCooldown -= dt;
         if (phase === 'FARM' && t.frontS >= t.maxFrontS - 0.5 && this.farmWallCooldown <= 0) {
           this.farmWallCooldown = 4;
-          this.hud.warn(this.cargo.totalKg > 0 ? '🚚 "শহরের দিকে রওনা" চাপুন' : '🌾 আগে ক্ষেত থেকে সবজি কিনুন', 'info', 2.5);
+          this.hud.warn(this.cargo.totalKg > 0 ? '{truck} "শহরের দিকে রওনা" চাপুন' : '{farm} আগে ক্ষেত থেকে সবজি কিনুন', 'info', 2.5);
         }
       } else if (phase === 'MENU') {
         // gentle idle: keep the world alive behind the menu

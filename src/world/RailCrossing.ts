@@ -171,7 +171,7 @@ export class RailCrossing extends SetPiece<RailEvent> {
     }
 
     // Approach sign
-    const sign = signPost(signTexture(['🚆 সামনে রেলক্রসিং', 'গেট বন্ধ থাকলে থামুন'], { bg: '#ffd23f', fg: '#1d1d1d', border: '#c1121f', sizes: [52, 40] }), 3, 1.5, 2.2);
+    const sign = signPost(signTexture(['{train} সামনে রেলক্রসিং', 'গেট বন্ধ থাকলে থামুন'], { bg: '#ffd23f', fg: '#1d1d1d', border: '#c1121f', sizes: [52, 40] }), 3, 1.5, 2.2);
     sign.position.copy(this.at(S - 220, -hw - 3, y0));
     sign.rotation.y = 0.3;
     this.group.add(sign);
@@ -248,7 +248,7 @@ export class RailCrossing extends SetPiece<RailEvent> {
     if (this.state === 'idle' && g.state.phase === 'HIGHWAY' && !g.chase.active && front > S - RAIL.triggerDistance && front < S) {
       if (Math.random() < RAIL.trainChance) {
         this.close();
-        g.hud.warn('🚆 রেলগেট বন্ধ হচ্ছে — ট্রেন আসছে!', 'info', 3.5);
+        g.hud.warn('{train} রেলগেট বন্ধ হচ্ছে — ট্রেন আসছে!', 'info', 3.5);
       } else this.state = 'open';
     }
 
@@ -305,7 +305,7 @@ export class RailCrossing extends SetPiece<RailEvent> {
       if (this.state === 'closed' && this.trainDir * tail > 25) {
         this.state = 'opening';
         this.gateT = 0;
-        if (near) g.hud.toast('🚆 ট্রেন চলে গেছে — গেট খুলছে');
+        if (near) g.hud.toast('{train} ট্রেন চলে গেছে — গেট খুলছে');
       }
       if (this.trainDir * tail > 500) this.train.visible = false;
     }
@@ -320,12 +320,12 @@ export class RailCrossing extends SetPiece<RailEvent> {
           g.cam.shake(0.6);
           g.sound.crash(0.4);
           g.damageCargo(1, 'রেলগেটে ধাক্কা', this.event.nameBn);
-          g.hud.warn('💥 রেলগেটে ধাক্কা! গেটম্যান খুব রাগ করেছেন', 'danger', 2.5);
+          g.hud.warn('{crash} রেলগেটে ধাক্কা! গেটম্যান খুব রাগ করেছেন', 'danger', 2.5);
         }
       }
       if (!this.waitedTold && Math.abs(tr.speed) < EVENTS.stopSpeed && front > S - 60 && front < gateS + 1) {
         this.waitedTold = true;
-        g.hud.toast(`⏳ ${WAIT_LINES[Math.floor(Math.random() * WAIT_LINES.length)]}`, 4);
+        g.hud.toast(`{hourglass} ${WAIT_LINES[Math.floor(Math.random() * WAIT_LINES.length)]}`, 4);
       }
     }
   }

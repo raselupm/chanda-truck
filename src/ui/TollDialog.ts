@@ -5,8 +5,8 @@ export class TollDialog extends PaymentDialog {
   constructor(parent: HTMLElement) {
     super(parent, {
       className: 'toll',
-      icon: '🏛️',
-      receiptBn: 'সরকারি রশিদ প্রদান করা হলো ✔',
+      icon: '{govt}',
+      receiptBn: 'সরকারি রশিদ প্রদান করা হলো {check}',
       payLabel: (amount) => `টোল দিন ${amount}`,
       inKindNote: (cash, kg) => `নগদ ${cash} — বাকিটা মেটাতে ${kg} মাল রেখে যেতে হবে।`,
     });

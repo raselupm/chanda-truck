@@ -105,7 +105,7 @@ export class Chasers {
       u.speed = Math.max(0, t.speed - 3);
       u.facing = 1;
     }
-    this.game.hud.warn(`🏍️ পিছনে ধাওয়া! ${toBnDigits(ECONOMY.ramSpeedKmh)}+ গতিতে ${toBnDigits(ECONOMY.chaseRequiredSeconds)} সেকেন্ড টিকে থাকুন`, 'danger', 4);
+    this.game.hud.warn(`{bike} পিছনে ধাওয়া! ${toBnDigits(ECONOMY.ramSpeedKmh)}+ গতিতে ${toBnDigits(ECONOMY.chaseRequiredSeconds)} সেকেন্ড টিকে থাকুন`, 'danger', 4);
   }
 
   update(dt: number): void {
@@ -178,7 +178,7 @@ export class Chasers {
     this.state = 'leaving';
     g.stats.chasesEscaped++;
     g.sound.crowd(2);
-    g.hud.warn('🎉 পালিয়ে গেলেন!', 'good', 3.5);
+    g.hud.warn('{party} পালিয়ে গেলেন!', 'good', 3.5);
     g.hud.toast('ওরা হাল ছেড়ে দিল… পরের মোড়ে আবার দেখা হবে।');
   }
 

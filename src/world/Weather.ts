@@ -71,12 +71,12 @@ const PRESETS: Record<WeatherKind, Preset> = {
 };
 
 export const WEATHER_LABEL: Record<WeatherKind, string> = {
-  day: '☀️ দিন',
-  evening: '🌇 সন্ধ্যা',
-  night: '🌙 রাত',
-  cloudy: '☁️ মেঘলা',
-  rainy: '🌧️ বৃষ্টি',
-  storm: '⛈️ ঝড়-বজ্রপাত',
+  day: '{sun} দিন',
+  evening: '{sunset} সন্ধ্যা',
+  night: '{moon} রাত',
+  cloudy: '{cloud} মেঘলা',
+  rainy: '{rain} বৃষ্টি',
+  storm: '{storm} ঝড়-বজ্রপাত',
 };
 
 /** Which states each state can drift into (keeps changes believable). */

@@ -12,6 +12,9 @@ export type ZoneKind = 'village' | 'rural' | 'town' | 'river' | 'city';
 export interface BridgeSpan {
   start: number;
   end: number;
+  /** road deck height and ramp length (from ROAD.bridgeStyles) */
+  deck: number;
+  ramp: number;
   style: BridgeStyle;
   nameBn: string;
 }
@@ -51,8 +54,9 @@ export class Track {
       let end = e.s + ROAD.straightAfter;
       if ((e.type === 'bridgeToll' || e.type === 'roadToll' || e.type === 'roadTax') && e.bridge) {
         const start = e.s + e.bridge.offset;
-        this.bridges.push({ start, end: start + e.bridge.length, style: e.bridge.style, nameBn: e.bridge.nameBn });
-        end = start + e.bridge.length + ROAD.bridgeRampLength + 60;
+        const st = ROAD.bridgeStyles[e.bridge.style];
+        this.bridges.push({ start, end: start + e.bridge.length, style: e.bridge.style, nameBn: e.bridge.nameBn, deck: st.deck, ramp: st.ramp });
+        end = start + e.bridge.length + st.ramp + 60;
       }
       if (e.type === 'market') end = this.length + 2000;
       straight.push([e.s - ROAD.straightBefore, end]);
@@ -84,7 +88,6 @@ export class Track {
     const n = Math.ceil((this.length + 1500 - ORIGIN) / STEP) + 1;
     this.cx = new Float32Array(n);
     this.el = new Float32Array(n);
-    const ramp = ROAD.bridgeRampLength;
     for (let i = 0; i < n; i++) {
       const s = ORIGIN + i * STEP;
       let x = 0;
@@ -98,13 +101,16 @@ export class Track {
       this.cx[i] = x;
       let h = 0;
       for (const b of this.bridges) {
+        const ramp = b.ramp;
         if (s >= b.start - ramp && s <= b.end + ramp) {
-          if (s < b.start) h = Math.max(h, smoothstep(b.start - ramp, b.start, s));
-          else if (s > b.end) h = Math.max(h, 1 - smoothstep(b.end, b.end + ramp, s));
-          else h = 1;
+          let k: number;
+          if (s < b.start) k = smoothstep(b.start - ramp, b.start, s);
+          else if (s > b.end) k = 1 - smoothstep(b.end, b.end + ramp, s);
+          else k = 1;
+          h = Math.max(h, k * b.deck);
         }
       }
-      this.el[i] = h * ROAD.bridgeDeckHeight;
+      this.el[i] = h;
     }
   }
 

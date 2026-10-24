@@ -5,6 +5,7 @@ import { VEGETABLES } from '../config/vegetables';
 import type { ResultData } from '../game/Results';
 import { formatBn, formatClock, formatKg, formatTaka } from '../utils/bnNumber';
 import { button, el, esc } from './dom';
+import { rich } from './icons';
 import { renderShareImage } from './ShareImage';
 
 export const CATEGORY_COLORS = {
@@ -25,10 +26,10 @@ export const BREAKDOWN_LABELS: Record<keyof typeof CATEGORY_COLORS, string> = {
 
 /** One plain line describing how the run ended. */
 export function outcomeLine(r: ResultData): { icon: string; text: string } {
-  if (r.outcome === 'crash') return { icon: '💥', text: 'সংঘর্ষে যাত্রা শেষ — মাল পৌঁছায়নি' };
-  if (r.outcome === 'toll') return { icon: '🚨', text: 'টোল প্লাজায় ট্রাক জব্দ — মাল পৌঁছায়নি' };
-  if (r.deliveredKg <= 0) return { icon: '📦', text: 'কাওরান বাজারে পৌঁছেছেন — কিন্তু ট্রাক খালি' };
-  return { icon: '✅', text: `কাওরান বাজারে পৌঁছেছেন — ${formatKg(r.deliveredKg)} মাল ডেলিভারি` };
+  if (r.outcome === 'crash') return { icon: '{crash}', text: 'সংঘর্ষে যাত্রা শেষ — মাল পৌঁছায়নি' };
+  if (r.outcome === 'toll') return { icon: '{siren}', text: 'টোল প্লাজায় ট্রাক জব্দ — মাল পৌঁছায়নি' };
+  if (r.deliveredKg <= 0) return { icon: '{box}', text: 'কাওরান বাজারে পৌঁছেছেন — কিন্তু ট্রাক খালি' };
+  return { icon: '{ok}', text: `কাওরান বাজারে পৌঁছেছেন — ${formatKg(r.deliveredKg)} মাল ডেলিভারি` };
 }
 
 const perKg = (v: number) => (Number.isFinite(v) ? formatTaka(v, 2) : '—');
@@ -77,7 +78,7 @@ export class ResultReport {
     const vegRows = r.rows
       .map((row) => {
         const v = VEGETABLES[row.veg];
-        return `<tr><td>${v.emoji} ${v.nameBn}</td><td class="num">${formatBn(Math.round(row.kgBought))}</td>
+        return `<tr><td>${v.icon} ${v.nameBn}</td><td class="num">${formatBn(Math.round(row.kgBought))}</td>
           <td class="num">${formatBn(Math.round(row.kgDelivered))}</td><td class="num">${perKg(row.farmPrice)}</td>
           <td class="num">${perKg(row.landedPerKg)}</td><td class="num">${perKg(row.marketPrice)}</td>
           <td class="num ${row.diff >= 0 ? 'pos' : 'neg'}">${perKg(row.diff)}</td></tr>`;
@@ -86,8 +87,8 @@ export class ResultReport {
     const s = r.stats;
     const stat = (label: string, value: string, cls = '') => `<div class="${cls}"><small>${label}</small><b>${value}</b></div>`;
 
-    this.card.innerHTML = `
-      <h2 class="rp-title">📋 যাত্রার হিসাব</h2>
+    this.card.innerHTML = rich(`
+      <h2 class="rp-title">{clipboard} যাত্রার হিসাব</h2>
       <div class="rp-outcome ${arrived ? 'ok' : 'bad'}">${o.icon} ${esc(o.text)}</div>
 
       <div class="rp-keys">
@@ -124,11 +125,11 @@ export class ResultReport {
         </div>
       </section>
 
-      <div class="rp-buttons"></div>`;
+      <div class="rp-buttons"></div>`);
     const btns = this.card.querySelector('.rp-buttons') as HTMLElement;
-    button('🔁 আবার চালান', 'btn btn-go', () => this.handlers.onReplay(), btns);
-    button('🏠 হোম', 'btn btn-ghost', () => this.handlers.onHome(), btns);
-    button('📤 শেয়ার করুন', 'btn btn-buy', () => void this.share(), btns);
+    button('{replay} আবার চালান', 'btn btn-go', () => this.handlers.onReplay(), btns);
+    button('{home} হোম', 'btn btn-ghost', () => this.handlers.onHome(), btns);
+    button('{share} শেয়ার করুন', 'btn btn-buy', () => void this.share(), btns);
     this.overlay.classList.remove('hidden');
     this.overlay.scrollTop = 0;
   }

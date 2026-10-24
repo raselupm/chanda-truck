@@ -1,10 +1,65 @@
 // Procedural canvas textures: signs, truck art, ground, windows.
 
 import * as THREE from 'three';
+import { ICON_TOKEN, iconImage } from '../ui/icons';
 import { toBnDigits } from './bnNumber';
 import { mulberry32 } from './rng';
 
 export const FONT_BN = '"Hind Siliguri", "Noto Sans Bengali", sans-serif';
+
+// ---- text with {icon} tokens on a canvas
+
+function fontPx(ctx: CanvasRenderingContext2D): number {
+  const m = /(\d+(?:\.\d+)?)px/.exec(ctx.font);
+  return m ? +m[1] : 16;
+}
+
+function segments(text: string): { text?: string; icon?: string }[] {
+  const out: { text?: string; icon?: string }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(ICON_TOKEN)) {
+    if (m.index! > last) out.push({ text: text.slice(last, m.index) });
+    out.push({ icon: m[1] });
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+/** Width of text that may contain {icon} tokens, in the current ctx font. */
+export function measureRich(ctx: CanvasRenderingContext2D, text: string): number {
+  if (!text.includes('{')) return ctx.measureText(text).width;
+  const px = fontPx(ctx);
+  return segments(text).reduce((w, sgm) => w + (sgm.icon ? px * 1.2 : ctx.measureText(sgm.text!).width), 0);
+}
+
+/** fillText that draws {icon} tokens as SVG icons. Honours textAlign and textBaseline. */
+export function fillRich(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, stroke = false): void {
+  if (!text.includes('{')) {
+    if (stroke) ctx.strokeText(text, x, y);
+    ctx.fillText(text, x, y);
+    return;
+  }
+  const px = fontPx(ctx);
+  const total = measureRich(ctx, text);
+  const align = ctx.textAlign;
+  let cx = align === 'center' ? x - total / 2 : align === 'right' || align === 'end' ? x - total : x;
+  ctx.textAlign = 'left';
+  const size = px * 1.05;
+  const top = ctx.textBaseline === 'middle' ? y - size / 2 : ctx.textBaseline === 'top' ? y : y - size * 0.85;
+  for (const sgm of segments(text)) {
+    if (sgm.icon) {
+      const img = iconImage(sgm.icon);
+      if (img) ctx.drawImage(img, cx + px * 0.05, top, size, size);
+      cx += px * 1.2;
+    } else {
+      if (stroke) ctx.strokeText(sgm.text!, cx, y);
+      ctx.fillText(sgm.text!, cx, y);
+      cx += ctx.measureText(sgm.text!).width;
+    }
+  }
+  ctx.textAlign = align;
+}
 
 export function canvasTexture(
   w: number,
@@ -53,12 +108,12 @@ export function signTexture(lines: string[], opts: SignOpts = {}): THREE.CanvasT
     lines.forEach((line, i) => {
       let size = sizes[i];
       ctx.font = `700 ${size}px ${FONT_BN}`;
-      while (ctx.measureText(line).width > w * 0.9 && size > 10) {
+      while (measureRich(ctx, line) > w * 0.9 && size > 10) {
         size -= 2;
         ctx.font = `700 ${size}px ${FONT_BN}`;
       }
       y += sizes[i] * 1.15;
-      ctx.fillText(line, w / 2, y - sizes[i] * 0.55);
+      fillRich(ctx, line, w / 2, y - sizes[i] * 0.55);
     });
   });
 }
@@ -233,7 +288,8 @@ export function billboardTexture(lines: string[], bg: string, fg: string, accent
 }
 
 export interface PosterSpec {
-  emoji: string;
+  /** icon token, e.g. '{tea}' */
+  icon: string;
   title: string;
   sub: string;
   fine?: string;
@@ -243,8 +299,6 @@ export interface PosterSpec {
   accent: string;
   pattern: 'rays' | 'stripes' | 'dots' | 'plain';
 }
-
-const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 
 /** Illustrated parody billboard: patterned background, big emoji "illustration", headline, tagline. */
 export function posterTexture(p: PosterSpec): THREE.CanvasTexture {
@@ -292,10 +346,10 @@ export function posterTexture(p: PosterSpec): THREE.CanvasTexture {
     ctx.lineWidth = 8;
     ctx.strokeStyle = p.accent;
     ctx.stroke();
-    ctx.font = `104px ${EMOJI_FONT}`;
+    const art = iconImage(p.icon.replace(/[{}]/g, ''));
+    if (art) ctx.drawImage(art, 100 - 56, h / 2 - 8 - 56, 112, 112);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(p.emoji, 100, h / 2 - 2);
 
     // Copy
     const tx = 340;
@@ -303,27 +357,27 @@ export function posterTexture(p: PosterSpec): THREE.CanvasTexture {
     ctx.fillStyle = p.fg;
     let size = 46;
     ctx.font = `700 ${size}px ${FONT_BN}`;
-    while (ctx.measureText(p.title).width > maxW && size > 18) ctx.font = `700 ${(size -= 2)}px ${FONT_BN}`;
+    while (measureRich(ctx, p.title) > maxW && size > 18) ctx.font = `700 ${(size -= 2)}px ${FONT_BN}`;
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 6;
-    ctx.fillText(p.title, tx, 80);
+    fillRich(ctx, p.title, tx, 80);
     ctx.shadowBlur = 0;
     // tagline in a ribbon
     size = 30;
     ctx.font = `700 ${size}px ${FONT_BN}`;
-    while (ctx.measureText(p.sub).width > maxW - 20 && size > 14) ctx.font = `700 ${(size -= 2)}px ${FONT_BN}`;
-    const tw = Math.min(maxW, ctx.measureText(p.sub).width + 30);
+    while (measureRich(ctx, p.sub) > maxW - 20 && size > 14) ctx.font = `700 ${(size -= 2)}px ${FONT_BN}`;
+    const tw = Math.min(maxW, measureRich(ctx, p.sub) + 30);
     ctx.fillStyle = p.accent;
     ctx.beginPath();
     ctx.roundRect(tx - tw / 2, 116, tw, 48, 10);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(p.sub, tx, 141);
+    fillRich(ctx, p.sub, tx, 141);
     if (p.fine) {
       ctx.fillStyle = p.fg;
       ctx.globalAlpha = 0.85;
       ctx.font = `600 18px ${FONT_BN}`;
-      ctx.fillText(p.fine, tx, 196);
+      fillRich(ctx, p.fine, tx, 196);
       ctx.globalAlpha = 1;
     }
     // frame

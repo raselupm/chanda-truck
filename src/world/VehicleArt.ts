@@ -2,7 +2,7 @@
 // fictional company names on bus & truck sides, bumper stickers on cars. All names are made up.
 
 import * as THREE from 'three';
-import { canvasTexture, FONT_BN } from '../utils/textures';
+import { canvasTexture, fillRich, FONT_BN, measureRich } from '../utils/textures';
 import { mulberry32 } from '../utils/rng';
 
 export const REAR_SLOGANS: string[][] = [
@@ -21,7 +21,7 @@ export const REAR_SLOGANS: string[][] = [
   ['লাইসেন্স?', 'বাড়িতে রাখা'],
   ['চাঁদা দিয়ে', 'আসছি'],
   ['দুষ্টু ছেলে', 'ধাক্কা দিও না'],
-  ['চলিলাম', 'দুবাই ✈'],
+  ['চলিলাম', 'দুবাই {plane}'],
   ['সুপার ফাস্ট', '(মাঝে মাঝে)'],
   ['নো টেনশন', 'পরিবহন'],
 ];
@@ -75,7 +75,7 @@ function flower(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, 
 
 function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number, size: number): number {
   ctx.font = `700 ${size}px ${FONT_BN}`;
-  while (ctx.measureText(text).width > maxW && size > 10) {
+  while (measureRich(ctx, text) > maxW && size > 10) {
     size -= 2;
     ctx.font = `700 ${size}px ${FONT_BN}`;
   }
@@ -119,13 +119,13 @@ function rearTexture(lines: string[], i: number): THREE.Texture {
     ctx.textBaseline = 'middle';
     if (lines.length === 1) {
       fitText(ctx, lines[0], w - 130, 56);
-      ctx.fillText(lines[0], w / 2, h / 2 + 4);
+      fillRich(ctx, lines[0], w / 2, h / 2 + 4);
     } else {
       fitText(ctx, lines[0], w - 130, 44);
-      ctx.fillText(lines[0], w / 2, h / 2 - 24);
+      fillRich(ctx, lines[0], w / 2, h / 2 - 24);
       ctx.fillStyle = '#c1121f';
       fitText(ctx, lines[1], w - 130, 38);
-      ctx.fillText(lines[1], w / 2, h / 2 + 26);
+      fillRich(ctx, lines[1], w / 2, h / 2 + 26);
     }
   });
 }
@@ -158,9 +158,8 @@ function stripTexture(text: string, i: number, sticker: boolean): THREE.Texture 
     if (!sticker) {
       ctx.strokeStyle = 'rgba(255,255,255,0.9)';
       ctx.lineWidth = 6;
-      ctx.strokeText(text, w / 2, h / 2 + 4);
-    }
-    ctx.fillText(text, w / 2, h / 2 + 4);
+      fillRich(ctx, text, w / 2, h / 2 + 4, true);
+    } else fillRich(ctx, text, w / 2, h / 2 + 4);
   });
 }
 

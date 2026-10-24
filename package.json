@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "social-images": "bash scripts/social/render.sh"
   },
   "dependencies": {
     "@fontsource/hind-siliguri": "5.3.0",

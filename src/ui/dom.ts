@@ -1,4 +1,6 @@
-/** Tiny DOM helper: el('div', 'cls', 'text or html') */
+import { rich } from './icons';
+
+/** Tiny DOM helper: el('div', 'cls', 'text or html'). {icon} tokens in html become SVG icons. */
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className = '',
@@ -7,14 +9,18 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (className) e.className = className;
-  if (html) e.innerHTML = html;
+  if (html) e.innerHTML = rich(html);
   parent?.appendChild(e);
   return e;
 }
 
-/** Set text only when it changed (avoids layout thrash in the per-frame HUD). */
+/** Set text only when it changed (avoids layout thrash in the per-frame HUD). {icon} tokens become SVG. */
 export function setText(e: Element, text: string): void {
-  if (e.textContent !== text) e.textContent = text;
+  const el = e as Element & { _raw?: string };
+  if (el._raw === text) return;
+  el._raw = text;
+  if (text.includes('{')) e.innerHTML = rich(esc(text));
+  else e.textContent = text;
 }
 
 export function esc(s: string): string {

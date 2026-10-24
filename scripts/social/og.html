@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: 'Hind Siliguri'; font-weight: 700; src: url('../../node_modules/@fontsource/hind-siliguri/files/hind-siliguri-bengali-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Hind Siliguri'; font-weight: 600; src: url('../../node_modules/@fontsource/hind-siliguri/files/hind-siliguri-bengali-600-normal.woff2') format('woff2'); }
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    font-family: 'Hind Siliguri', sans-serif; color: #fbeedd;
+    background: radial-gradient(ellipse at 70% 0%, #6b3a12 0%, #2a1a0e 55%, #1a110b 100%);
+    position: relative;
+  }
+  .road { position: absolute; left: 0; right: 0; bottom: 0; height: 112px; background: #3d3b40; }
+  .road::before { content: ''; position: absolute; left: 0; right: 0; top: 52px; height: 9px;
+    background: repeating-linear-gradient(90deg, #ffd23f 0 70px, transparent 70px 120px); }
+  .road::after { content: ''; position: absolute; left: 0; right: 0; top: -14px; height: 14px; background: #8f7a52; }
+  .title { position: absolute; left: 70px; top: 62px; font-size: 108px; font-weight: 700; color: #f2a03d;
+    text-shadow: 0 6px 0 #6b2d0f; line-height: 1; }
+  .tag { position: absolute; left: 74px; top: 196px; font-size: 38px; font-weight: 600; max-width: 640px; line-height: 1.35; }
+  .price { position: absolute; left: 74px; top: 318px; display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: center; font-size: 32px; font-weight: 700; max-width: 640px; }
+  .chip { background: rgba(255,255,255,.1); border: 2px solid rgba(255,255,255,.25); border-radius: 14px; padding: 6px 18px; }
+  .chip.red { color: #ff8a7a; border-color: #ff6b5a; }
+  .truck { position: absolute; right: 60px; bottom: 52px; width: 330px; filter: drop-shadow(0 12px 18px rgba(0,0,0,.5)); }
+  .icons { position: absolute; right: 64px; top: 78px; display: flex; gap: 14px; }
+  .icons svg { width: 64px; height: 64px; background: rgba(255,255,255,.08); border-radius: 16px; padding: 10px; }
+</style>
+</head>
+<body>
+  <div class="title">সবজির ট্রাক</div>
+  <div class="tag">ক্ষেতে সস্তা, বাজারে আগুন — মাঝের রাস্তাটা নিজে চালিয়ে দেখুন।</div>
+  <div class="price"><span class="chip">ক্ষেতে ৳২০</span><span>→</span><span class="chip">কাওরান বাজারে ৳৫৮</span><span class="chip red">মাঝখানে কে খেলো?</span></div>
+  <div class="icons">
+    <svg viewBox="0 0 64 64"><path d="M19 36V18a4 4 0 0 1 8 0v12V11a4 4 0 0 1 8 0v19V13a4 4 0 0 1 8 0v18V20a4 4 0 0 1 8 0v22c0 11-8 19-19 19h-1c-7 0-11-3-15-9l-7-11a4 4 0 0 1 7-5z" fill="#f4b183" stroke="#9a5d3a" stroke-width="2.5" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 64 64"><rect y="47" width="64" height="17" fill="#4f9fd6"/><rect x="2" y="27" width="60" height="7" fill="#8d969c"/><path d="M4 27l8-13 8 13 8-13 8 13 8-13 8 13 8-13" fill="none" stroke="#5f686e" stroke-width="3" stroke-linejoin="round"/><rect x="13" y="34" width="6" height="14" fill="#c2bcae"/><rect x="45" y="34" width="6" height="14" fill="#c2bcae"/></svg>
+    <svg viewBox="0 0 64 64"><rect x="13" y="5" width="38" height="46" rx="9" fill="#1d4e89"/><rect x="18" y="11" width="28" height="15" rx="3" fill="#bfe6f7"/><rect x="13" y="31" width="38" height="5" fill="#ffd166"/><circle cx="22" cy="43" r="3.5" fill="#fff3b0"/><circle cx="42" cy="43" r="3.5" fill="#fff3b0"/><path d="M19 51l-7 11M45 51l7 11" stroke="#666" stroke-width="4" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 64 64"><path d="M13 3h38v56l-6-4-6 4-6-4-6 4-6-4-8 4z" fill="#fff" stroke="#8a8a8a" stroke-width="2.5" stroke-linejoin="round"/><path d="M20 15h24M20 25h24M20 35h16" stroke="#555" stroke-width="3.5" stroke-linecap="round"/></svg>
+  </div>
+  <div class="road"></div>
+  <svg class="truck" viewBox="0 0 64 52"><rect x="3" y="10" width="38" height="28" rx="3" fill="#f2a03d"/><path d="M8 16h28M8 23h28M8 30h28" stroke="#e63946" stroke-width="2"/><path d="M41 18h12l8 11v9H41z" fill="#2a9d8f"/><rect x="45" y="22" width="8" height="7" rx="1" fill="#bfe6f7"/><circle cx="15" cy="42" r="6.5" fill="#222"/><circle cx="51" cy="42" r="6.5" fill="#222"/><circle cx="15" cy="42" r="2.5" fill="#bbb"/><circle cx="51" cy="42" r="2.5" fill="#bbb"/></svg>
+</body>
+</html>

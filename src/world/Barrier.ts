@@ -179,7 +179,7 @@ export class Barrier extends SetPiece<BarrierEvent> {
     if (this.state === 'closed' && g.state.phase === 'HIGHWAY') {
       if (!this.warned && front > S - EVENTS.barrierWarnDistance && front < S) {
         this.warned = true;
-        g.hud.warn('⚠️ সামনে চাঁদাবাজি!', 'danger', 3.5);
+        g.hud.warn('{warning} সামনে চাঁদাবাজি!', 'danger', 3.5);
         g.sound.whistle();
       }
       // They see a truck coming fast — jump out of the way (they never get hit)
@@ -267,7 +267,7 @@ export class Barrier extends SetPiece<BarrierEvent> {
     }
     const pct = ECONOMY.cargoDamagePct.ramMin + Math.random() * (ECONOMY.cargoDamagePct.ramMax - ECONOMY.cargoDamagePct.ramMin);
     g.damageCargo(pct, 'ব্যারিকেড ভাঙতে গিয়ে মাল পড়ে গেছে', this.event.nameBn);
-    g.hud.warn('💥 ব্যারিকেড ভেঙে গেল! এখন পালান!', 'danger', 2.5);
+    g.hud.warn('{crash} ব্যারিকেড ভেঙে গেল! এখন পালান!', 'danger', 2.5);
     g.startChase(this.base, this.event.nameBn);
   }
 

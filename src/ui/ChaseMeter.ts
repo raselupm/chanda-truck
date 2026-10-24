@@ -3,6 +3,7 @@
 import { ECONOMY } from '../config/economy';
 import { formatBn, formatDistance } from '../utils/bnNumber';
 import { el, setText } from './dom';
+import { rich } from './icons';
 
 const R = 42;
 const CIRC = 2 * Math.PI * R;
@@ -16,8 +17,8 @@ export class ChaseMeter {
 
   constructor(parent: HTMLElement) {
     this.root = el('div', 'chase hidden', '', parent);
-    this.root.innerHTML = `
-      <div class="chase-title">🏍️ ধাওয়া!</div>
+    this.root.innerHTML = rich(`
+      <div class="chase-title">{bike} ধাওয়া!</div>
       <div class="chase-ring">
         <svg viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="${R}" class="bg"/>
@@ -26,7 +27,7 @@ export class ChaseMeter {
         <div class="chase-secs"></div>
       </div>
       <div class="chase-dist"></div>
-      <div class="chase-hint"></div>`;
+      <div class="chase-hint"></div>`);
     this.ring = this.root.querySelector('.fg') as SVGCircleElement;
     this.secs = this.root.querySelector('.chase-secs') as HTMLElement;
     this.dist = this.root.querySelector('.chase-dist') as HTMLElement;
