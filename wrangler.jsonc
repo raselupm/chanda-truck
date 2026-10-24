@@ -1,0 +1,10 @@
+// Cloudflare Workers static-assets deployment: `npm run build` → `npx wrangler deploy` uploads dist/.
+// Having this file stops wrangler from trying to auto-configure (and edit) the Vite project.
+{
+  "name": "chanda-truck",
+  "compatibility_date": "2026-10-19",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
