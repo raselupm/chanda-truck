@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     server: { host: true },
-    plugins: [seoFiles(env.VITE_SITE_URL ?? 'https://sobjir-truck.pages.dev')],
+    plugins: [seoFiles(env.VITE_SITE_URL ?? 'https://chanda-truck.rasel.me')],
     build: {
       target: 'es2020',
       chunkSizeWarningLimit: 1200,
