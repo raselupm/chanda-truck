@@ -337,7 +337,11 @@
   }
   .next-event { white-space: normal; text-align: center; }
   .chase { top: calc(var(--safe-top) + 160px); width: 108px; }
-  .warn { top: 32%; font-size: clamp(16px, 5.2vw, 24px); width: max-content; max-width: 92vw; }
+  /* warnings stack just above the toast, near the bottom */
+  .warn {
+    top: auto; bottom: calc(var(--safe-bottom) + 60px + clamp(74px, 22.75vw, 114px));
+    font-size: 14px; padding: 5px 12px; border-radius: 10px; width: max-content; max-width: 70vw;
+  }
   /* sits just above the speedometer, between the touch controls */
   .toast {
     white-space: normal; text-align: center; line-height: 1.3;
