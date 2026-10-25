@@ -34,6 +34,32 @@ export abstract class SetPiece<E extends RouteEvent = RouteEvent> {
     return false;
   }
 
+  /**
+   * Pieces that direct traffic themselves (toll booths, roadworks flagmen, traffic lights).
+   * Traffic is not removed around them, ignores `blocking` / `queueGap` for them and uses stopLine() instead.
+   */
+  get controlsTraffic(): boolean {
+    return false;
+  }
+
+  /** Where traffic travelling `dir` must stop right now (front bumper), or null when it may go. */
+  stopLine(_dir: 1 | -1): number | null {
+    return null;
+  }
+
+  /** Seconds each vehicle waits at the stop line before it may go (toll booths). 0 = none. */
+  get serviceTime(): number {
+    return 0;
+  }
+
+  /** A vehicle has finished its service (paid at the booth). */
+  served(): void {}
+
+  /** Lane (lateral offset) traffic travelling `dir` should keep at s, or null for its own lane. */
+  laneAt(_s: number, _dir: 1 | -1): number | null {
+    return null;
+  }
+
   abstract update(dt: number): void;
 
   dispose(): void {

@@ -3,7 +3,7 @@
 // Around every event the road is perfectly straight at x = 0, so set pieces need no rotation.
 
 import * as THREE from 'three';
-import { ROAD } from '../config/tuning';
+import { CITY, JUNCTION, ROAD } from '../config/tuning';
 import type { BridgeStyle, RouteDef } from '../config/route';
 import { clamp, smoothstep } from '../utils/math';
 
@@ -36,6 +36,11 @@ export interface PropBlock {
 
 const ORIGIN = -300;
 const STEP = 2;
+/** metres over which the road widens into / narrows out of the city avenue */
+const WIDEN = 40;
+const AVENUE_HW = CITY.lanesPerSide * CITY.laneWidth;
+/** how far the truck centre may drift from the centreline on the avenue (open lanes + a little) */
+const AVENUE_LIMIT = CITY.openLanes * CITY.laneWidth + 0.3 - 1.25;
 
 export class Track {
   readonly length: number;
@@ -147,7 +152,35 @@ export class Track {
     const hs = this.route.highwayStartS;
     if (s < hs - 60) return ROAD.villageHalfWidth;
     if (s < hs) return ROAD.villageHalfWidth + (ROAD.highwayHalfWidth - ROAD.villageHalfWidth) * smoothstep(hs - 60, hs, s);
-    return ROAD.highwayHalfWidth;
+    return ROAD.highwayHalfWidth + (AVENUE_HW - ROAD.highwayHalfWidth) * this.wideness(s);
+  }
+
+  /** 0 on the highway, 1 on the city avenue (smooth in between). */
+  wideness(s: number): number {
+    const w = this.route.wide;
+    if (!w || s < w[0] - WIDEN || s > w[1] + WIDEN) return 0;
+    return smoothstep(w[0] - WIDEN, w[0], s) * (1 - smoothstep(w[1], w[1] + WIDEN, s));
+  }
+
+  /** Fully on the 4 + 4 lane city avenue. */
+  isWide(s: number): boolean {
+    const w = this.route.wide;
+    return !!w && s >= w[0] && s <= w[1];
+  }
+
+  /** Lane centre (always positive) for traffic: inner or outer lane; the avenue only has its inner lane open. */
+  laneD(s: number, outer: boolean): number {
+    if (this.wideness(s) > 0.5) return CITY.laneWidth / 2;
+    return (outer ? 0.75 : 0.25) * ROAD.highwayHalfWidth;
+  }
+
+  /** Inside a city junction box (no lane markings there). */
+  isJunction(s: number): boolean {
+    return this.route.events.some((e) => e.type === 'junction' && Math.abs(s - e.s) < JUNCTION.crossHalfWidth + 1);
+  }
+
+  isBroken(s: number): boolean {
+    return this.route.broken.some(([a, b]) => s >= a && s <= b);
   }
 
   isVillage(s: number): boolean {
@@ -177,6 +210,12 @@ export class Track {
     else if (this.elevation(s) > 1.5) limit = this.halfWidth(s) + ROAD.shoulder - 0.8;
     else if (this.isVillage(s)) limit = this.halfWidth(s) + 5;
     else limit = ROAD.hardLimit;
+    // City avenue: the occupied lanes squeeze everybody into the inner lanes
+    const w = this.route.wide;
+    if (w && s > w[0] - 60 && s < w[1] + 60) {
+      const k = smoothstep(w[0] - 60, w[0] + 10, s) * (1 - smoothstep(w[1] - 10, w[1] + 60, s));
+      limit = limit + (AVENUE_LIMIT - limit) * k;
+    }
     let lo = -limit;
     let hi = limit;
     for (const l of this.limits) {

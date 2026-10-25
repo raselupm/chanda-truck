@@ -3,7 +3,7 @@
 // Distances (s, metres along the track) are compressed for gameplay.
 
 import { ECONOMY, type FeeKey } from './economy';
-import { RAIL, SLOW_ZONES } from './tuning';
+import { BROKEN_ROAD, CITY, RAIL, ROADWORKS, SLOW_ZONES } from './tuning';
 import type { VegId } from './vegetables';
 import { toBnDigits } from '../utils/bnNumber';
 import { mulberry32, range, type Rng } from '../utils/rng';
@@ -56,7 +56,18 @@ export interface MarketEvent extends EventBase {
   type: 'market';
 }
 
-export type RouteEvent = FarmEvent | BarrierEvent | TollEvent | RailEvent | MarketEvent;
+/** Village roadworks: our half is closed for `length` metres, a flagman runs one shared lane. */
+export interface RoadworksEvent extends EventBase {
+  type: 'roadworks';
+  length: number;
+}
+
+/** City four-way junction with traffic lights. */
+export interface JunctionEvent extends EventBase {
+  type: 'junction';
+}
+
+export type RouteEvent = FarmEvent | BarrierEvent | TollEvent | RailEvent | MarketEvent | RoadworksEvent | JunctionEvent;
 
 export interface SlowZone {
   from: number;
@@ -79,6 +90,10 @@ export interface RouteDef {
   townZones: [number, number][];
   /** speed-limited stretches: bazaars, schools, the market approach */
   slowZones: SlowZone[];
+  /** broken stretches of road (speed capped at BROKEN_ROAD.maxKmh) */
+  broken: [number, number][];
+  /** the city avenue with 4 + 4 lanes (only the inner ones open) */
+  wide: [number, number] | null;
   events: RouteEvent[];
   /** total track length (a little beyond the market) */
   length: number;
@@ -171,6 +186,9 @@ const LAYOUT = {
   afterBarrier: [1_000, 1_300] as [number, number],
   afterToll: [800, 1_050] as [number, number],
   afterBridge: [650, 850] as [number, number],
+  /** road between the end of a broken stretch and the next event */
+  afterBroken: [450, 600] as [number, number],
+  afterWorks: [650, 850] as [number, number],
   cityStretch: 1_500,
 };
 
@@ -187,27 +205,47 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   const rng = mulberry32(seed);
 
   // Interleave barriers randomly with the legal stops (legal order is kept)
-  const seq: (LegalStop | 'B' | 'R')[] = [...sp.legal];
+  const seq: (LegalStop | 'B' | 'R' | 'W' | 'P')[] = [...sp.legal];
   for (let i = 0; i < sp.randomBarriers; i++) seq.splice(Math.floor(rng() * (seq.length + 1)), 0, 'B');
   // The last thing before the city is always a barrier at the city entrance
   if (sp.randomBarriers > 0 && seq[seq.length - 1] !== 'B') {
     seq.splice(seq.lastIndexOf('B'), 1);
     seq.push('B');
   }
-  // Railway level crossings anywhere before the city entrance
-  const rails = RAIL.perRouteMin + Math.floor(rng() * (RAIL.perRouteMax - RAIL.perRouteMin + 1));
-  for (let i = 0; i < rails; i++) seq.splice(Math.floor(rng() * seq.length), 0, 'R');
+  // Railway level crossings and roadworks anywhere before the city entrance
+  const between = (min: number, max: number) => min + Math.floor(rng() * (max - min + 1));
+  for (let i = between(RAIL.perRouteMin, RAIL.perRouteMax); i > 0; i--) seq.splice(Math.floor(rng() * seq.length), 0, 'R');
+  for (let i = between(ROADWORKS.perRouteMin, ROADWORKS.perRouteMax); i > 0; i--) seq.splice(Math.floor(rng() * seq.length), 0, 'W');
+  // Broken stretches, never straight after a barrier (you need 90+ km/h for the chase there)
+  for (let i = between(BROKEN_ROAD.ruralMin, BROKEN_ROAD.ruralMax); i > 0; i--) {
+    let at = 0;
+    for (let tries = 0; tries < 20; tries++) {
+      at = Math.floor(rng() * seq.length);
+      if (seq[at - 1] !== 'B') break;
+    }
+    if (seq[at - 1] !== 'B') seq.splice(at, 0, 'P');
+  }
 
   const places = [...BARRIER_PLACES].sort(() => rng() - 0.5);
   const events: RouteEvent[] = [...FARMS];
   const townZones: [number, number][] = [];
+  const broken: [number, number][] = [];
   let s = LAYOUT.firstEvent;
   let b = 0;
   let r = 0;
+  let w = 0;
   seq.forEach((item, idx) => {
     if (item === 'R') {
       events.push({ id: `rail${++r}`, type: 'rail', s, nameBn: 'রেলক্রসিং', icon: '{train}' });
       s += range(rng, ...LAYOUT.afterToll);
+    } else if (item === 'W') {
+      events.push({ id: `works${++w}`, type: 'roadworks', s, length: ROADWORKS.length, nameBn: 'রাস্তার কাজ — এক লেন', icon: '{cement}' });
+      s += range(rng, ...LAYOUT.afterWorks);
+    } else if (item === 'P') {
+      // starts a little before where the next event would have been
+      const len = range(rng, BROKEN_ROAD.lenMin, BROKEN_ROAD.lenMax);
+      broken.push([s - 200, s - 200 + len]);
+      s += len - 200 + range(rng, ...LAYOUT.afterBroken);
     } else if (item === 'B') {
       const last = idx === seq.length - 1;
       const place = last ? 'শহরের প্রবেশমুখ' : places[b % places.length];
@@ -234,13 +272,29 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   const marketS = s + LAYOUT.cityStretch;
   events.push({ id: 'market', type: 'market', s: marketS, nameBn: 'কাওরান বাজার', icon: '{cart}' });
 
+  // City avenue: 4 + 4 lanes from the end of the last chase stretch, junctions with traffic lights,
+  // and one broken stretch between the junctions
+  const wide: [number, number] = [s, marketS - CITY.wideEndBeforeMarket];
+  CITY.junctions.forEach((off, i) => {
+    events.push({ id: `junction${i + 1}`, type: 'junction', s: s + off, nameBn: 'চার রাস্তার মোড়', icon: '{trafficlight}' });
+  });
+  const [j1, j2] = CITY.junctions;
+  const cityLen = range(rng, BROKEN_ROAD.cityLenMin, BROKEN_ROAD.cityLenMax);
+  const cityFrom = s + j1 + 40 + rng() * Math.max(0, j2 - j1 - 80 - cityLen);
+  broken.push([cityFrom, cityFrom + cityLen]);
+  events.sort((a, b2) => a.s - b2.s);
+
   // Slow zones: every bazaar, a few schools in quiet stretches, and the market approach
   const slowZones: SlowZone[] = townZones.map(([a, b2]) => ({
     from: a, to: b2, kind: 'bazar', limitKmh: SLOW_ZONES.bazarKmh, side: rng() < 0.5 ? -1 : 1,
   }));
-  const busy: [number, number][] = [[0, LAYOUT.highwayStart + 300], [cityStartS - 400, marketS + 400], ...townZones.map(([a, b2]) => [a - 200, b2 + 200] as [number, number])];
+  const busy: [number, number][] = [
+    [0, LAYOUT.highwayStart + 300], [cityStartS - 400, marketS + 400],
+    ...townZones.map(([a, b2]) => [a - 200, b2 + 200] as [number, number]),
+    ...broken.map(([a, b2]) => [a - 150, b2 + 150] as [number, number]),
+  ];
   for (const e of events) {
-    if (e.type === 'farm' || e.type === 'market') continue;
+    if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
     const end = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.s + e.bridge.offset + e.bridge.length + 250 : e.s + 300;
     busy.push([e.s - 450, end]);
   }
@@ -264,6 +318,8 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     cityStartS,
     townZones,
     slowZones,
+    broken,
+    wide,
     events,
     length: marketS + 300,
   };

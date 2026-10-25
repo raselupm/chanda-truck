@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
 import type { TollEvent } from '../config/route';
-import { EVENTS, ROAD } from '../config/tuning';
+import { EVENTS, ROAD, TOLL_JAM } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { box, buildColored, cached, vertexColorMaterial, type Part } from '../utils/geometry';
 import { formatTaka } from '../utils/bnNumber';
@@ -53,6 +53,10 @@ export class TollPlaza extends SetPiece<TollEvent> {
   private t = 0;
   readonly fee: number;
   private officials: THREE.Mesh[] = [];
+  /** the queue of vehicles paying ahead of us */
+  private jamSpawned = false;
+  /** seconds the boom stays up for a vehicle that has just paid */
+  private boomOpen = 0;
 
   constructor(event: TollEvent, game: Game) {
     super(event, game);
@@ -170,10 +174,35 @@ export class TollPlaza extends SetPiece<TollEvent> {
     this.zone = glowZone(24, hw - 0.4, 0xffb020);
     this.zone.position.copy(this.at(S - 12.5, -hw / 2, ROAD.top + 0.04));
     this.group.add(this.zone);
+
+    // Crawling in the queue: thieves come for the vegetables
+    game.thieves.addZone(S - 220, S + 2, event.nameBn);
   }
 
   get blocking(): boolean {
     return !this.paid;
+  }
+
+  // Traffic queues at the booth, each vehicle pays and drives on
+  get controlsTraffic(): boolean {
+    return true;
+  }
+
+  stopLine(dir: 1 | -1): number | null {
+    return dir === 1 && !this.paid ? this.s - 0.3 : null;
+  }
+
+  get serviceTime(): number {
+    // the booth only starts serving once we're close, so we always end up in the queue
+    return this.game.truck.frontS > this.s - TOLL_JAM.serveFrom ? TOLL_JAM.serviceSeconds : Infinity;
+  }
+
+  served(): void {
+    this.boomOpen = 2.2;
+  }
+
+  laneAt(s: number, dir: 1 | -1): number | null {
+    return dir === 1 && s > this.s - 150 && s < this.s + 15 ? -this.game.track.halfWidth(this.s) / 2 : null;
   }
 
   visibleRange(): [number, number] {
@@ -191,6 +220,12 @@ export class TollPlaza extends SetPiece<TollEvent> {
     if (!this.paid) pulseGlow(this.zone, this.t, 0.2, 0.25);
 
     tr.rumble = tr.rumble || (front > S - 150 && front < S - 55 && !this.paid);
+
+    if (!this.jamSpawned && g.state.phase === 'HIGHWAY' && front > S - TOLL_JAM.spawnDistance && front < S - 150) {
+      this.jamSpawned = true;
+      const n = TOLL_JAM.vehiclesMin + Math.floor(Math.random() * (TOLL_JAM.vehiclesMax - TOLL_JAM.vehiclesMin + 1));
+      g.traffic.spawnQueue(S, -g.track.halfWidth(S) / 2, -g.track.laneD(S, Math.random() < 0.5), n);
+    }
     const near = !this.paid && front > S - 600 && front < S + 5;
     if (near) g.hud.tollMode = true;
 
@@ -208,13 +243,16 @@ export class TollPlaza extends SetPiece<TollEvent> {
         tr.clampFront(S - 0.05);
         tr.stop();
         this.openDialog();
-      } else if (!g.modal && Math.abs(tr.speed) < EVENTS.stopSpeed && front > S - 25 && front < S) {
+      } else if (!g.modal && Math.abs(tr.speed) < EVENTS.stopSpeed && front > S - 25 && front < S && !g.traffic.vehicleBetween(front, S + 2, tr.d)) {
         this.openDialog();
       }
     }
 
-    if (this.paid && this.boomT < 1) {
-      this.boomT = Math.min(1, this.boomT + dt * 0.9);
+    // The boom lifts for every vehicle that has paid, and for us
+    this.boomOpen = Math.max(0, this.boomOpen - dt);
+    const up = this.paid || this.boomOpen > 0;
+    if (up ? this.boomT < 1 : this.boomT > 0) {
+      this.boomT = Math.min(1, Math.max(0, this.boomT + (up ? dt * (this.paid ? 0.9 : 2.2) : -dt * 1.2)));
       this.boomPivot.rotation.z = (this.boomT * this.boomT * (3 - 2 * this.boomT)) * (Math.PI / 2 - 0.1);
     }
     // official waves the truck through once paid

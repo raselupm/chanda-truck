@@ -16,6 +16,11 @@ const C = {
   bridgeUnder: new THREE.Color(0x8a857b),
   white: new THREE.Color(0xecebe4),
   yellow: new THREE.Color(0xe8c02e),
+  // broken road: crumbling asphalt, gravel, potholes and muddy puddles
+  crumble: new THREE.Color(0x5b554d),
+  gravel: new THREE.Color(0x7a6e5e),
+  pothole: new THREE.Color(0x2b2622),
+  puddle: new THREE.Color(0x4f4434),
 };
 
 class StripBuilder {
@@ -133,9 +138,24 @@ export class RoadStreamer {
       const sh = bridge ? 1.0 : ROAD.shoulder;
 
       // Surface with a little colour noise (patches, wear)
-      const base = village ? (rng() < 0.3 ? C.dirtDark : C.dirt) : rng() < 0.12 ? C.asphaltPatch : C.asphalt;
+      const broken = !village && !bridge && t.isBroken(sm);
+      const base = village ? (rng() < 0.3 ? C.dirtDark : C.dirt)
+        : broken ? (rng() < 0.4 ? C.crumble : rng() < 0.5 ? C.gravel : C.asphaltPatch)
+        : rng() < 0.12 ? C.asphaltPatch : C.asphalt;
       tmp.copy(base).multiplyScalar(0.94 + rng() * 0.1);
       sb.quad(s0, s1, -hw0, hw0, -hw1, hw1, top, top, top, top, tmp);
+      if (broken) {
+        // potholes and puddles scattered across every lane
+        const holes = 2 + Math.floor(rng() * 3);
+        for (let k = 0; k < holes; k++) {
+          const d = (rng() * 2 - 1) * (hw0 - 0.8);
+          const w = 0.6 + rng() * 1.4;
+          const a = s0 + rng() * (step - 1);
+          const l = Math.min(s1 - a, 0.6 + rng() * 1.6);
+          const jag = (rng() - 0.5) * 0.5;
+          sb.quad(a, a + l, d - w / 2, d + w / 2, d - w / 2 + jag, d + w / 2 - jag, top + 0.012, top + 0.012, top + 0.012, top + 0.012, rng() < 0.35 ? C.puddle : C.pothole);
+        }
+      }
 
       // Shoulders
       const shColor = village ? C.dirtDark : bridge ? C.bridgeSide : C.shoulder;
@@ -170,7 +190,8 @@ export class RoadStreamer {
         }
       }
 
-      if (!village) {
+      // Markings (half worn away on broken stretches)
+      if (!village && (!broken || rng() < 0.35) && !t.isJunction(sm)) {
         const y = top + 0.015;
         // Edge lines
         sb.strip(s0, s1, -hw0 + 0.25, -hw0 + 0.45, y, C.white);
@@ -178,10 +199,14 @@ export class RoadStreamer {
         // Double yellow centre line
         sb.strip(s0, s1, -0.3, -0.16, y, C.yellow);
         sb.strip(s0, s1, 0.16, 0.3, y, C.yellow);
-        // Dashed lane dividers
+        // Dashed lane dividers (2 lanes a side on the highway, 4 on the city avenue)
         if (Math.floor(s0 / step) % 3 === 0) {
-          sb.strip(s0, s1, -hw0 / 2 - 0.08, -hw0 / 2 + 0.08, y, C.white);
-          sb.strip(s0, s1, hw0 / 2 - 0.08, hw0 / 2 + 0.08, y, C.white);
+          const lanes = Math.max(2, Math.round(hw0 / 3.5));
+          for (let k = 1; k < lanes; k++) {
+            const d = (hw0 * k) / lanes;
+            sb.strip(s0, s1, -d - 0.08, -d + 0.08, y, C.white);
+            sb.strip(s0, s1, d - 0.08, d + 0.08, y, C.white);
+          }
         }
       }
     }

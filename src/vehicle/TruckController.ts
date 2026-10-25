@@ -1,6 +1,6 @@
 // Arcade kinematic truck physics expressed in road coordinates (s along the road, d across it).
 
-import { TRUCK, WORLD } from '../config/tuning';
+import { BROKEN_ROAD, TRUCK, WORLD } from '../config/tuning';
 import type { DriveInput } from '../game/Input';
 import { clamp, damp, lerp } from '../utils/math';
 import type { Track } from '../world/Track';
@@ -29,6 +29,9 @@ export class TruckController {
   /** visual bumpiness (rumble strips, off-road) */
   bump = 0;
   rumble = false;
+  /** broken road: bumpy, and no faster than speedCapKmh */
+  rough = false;
+  speedCapKmh = Infinity;
   /** 0..1 how wet the road is (longer braking, a little less steering) */
   wet = 0;
   private bumpPhase = 0;
@@ -114,6 +117,9 @@ export class TruckController {
     }
     if (this.speed < -revMax) this.speed = -revMax;
     if (this.speed > maxV) this.speed = maxV;
+    // Broken road: the potholes won't let you go faster (shed the extra speed quickly)
+    const cap = this.speedCapKmh / 3.6;
+    if (this.speed > cap) this.speed = Math.max(cap, this.speed - BROKEN_ROAD.slowDecel * dt);
 
     // Steering: yaw rate falls with speed; tiny at standstill
     const v = Math.abs(this.speed);
@@ -160,7 +166,7 @@ export class TruckController {
     this.pitch = Math.atan(this.track.slopeAt(s));
 
     // Visual bump
-    const rough = (this.offRoad ? 1 : 0) + (this.rumble ? 1.2 : 0);
+    const rough = (this.offRoad ? 1 : 0) + (this.rumble ? 1.2 : 0) + (this.rough ? 1.6 : 0);
     this.bumpPhase += dt * (8 + v * 0.8);
     this.bump = rough > 0 ? Math.sin(this.bumpPhase) * 0.04 * rough * Math.min(1, v / 8) : 0;
   }

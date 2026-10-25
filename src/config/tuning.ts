@@ -189,3 +189,83 @@ export const WEATHER = {
   /** seconds to blend between two states */
   blendSeconds: 25,
 } as const;
+
+/** Broken stretches of road (ভাঙা রাস্তা), rural and in the city: the truck can't go faster than maxKmh. */
+export const BROKEN_ROAD = {
+  maxKmh: 70,
+  /** m/s² the truck is slowed by when it drives onto a broken stretch too fast */
+  slowDecel: 7,
+  ruralMin: 3,
+  ruralMax: 5,
+  lenMin: 180,
+  lenMax: 340,
+  cityLenMin: 120,
+  cityLenMax: 200,
+} as const;
+
+/** Queues of 5-6 vehicles at toll plazas: each pays at the booth, then drives off. */
+export const TOLL_JAM = {
+  vehiclesMin: 5,
+  vehiclesMax: 6,
+  /** the queue appears when the truck is this close to the booth */
+  spawnDistance: 480,
+  /** booths only start serving once the truck is this close (so you always end up in the queue) */
+  serveFrom: 170,
+  /** seconds each vehicle spends paying at the booth */
+  serviceSeconds: 2.2,
+} as const;
+
+/** Village roadworks: our half is dug up, both directions share one lane, a flagman alternates them. */
+export const ROADWORKS = {
+  perRouteMin: 2,
+  perRouteMax: 3,
+  /** length of the closed stretch */
+  length: 70,
+  vehiclesMin: 5,
+  vehiclesMax: 6,
+  spawnDistance: 480,
+  /** the flagman holds us (red) until the truck is this close, then starts his cycle */
+  cycleFrom: 220,
+  greenSeconds: 9,
+  redSeconds: 8,
+  /** all-red gap between the two directions */
+  clearSeconds: 4,
+} as const;
+
+/** City avenue: 4 + 4 lanes, but only the inner lane each way is open; the rest belongs to rickshaws, vans and hawkers. */
+export const CITY = {
+  lanesPerSide: 4,
+  laneWidth: 3.5,
+  /** open lanes per side (the rest is occupied) */
+  openLanes: 1,
+  /** four-way junctions, metres after the start of the avenue */
+  junctions: [300, 850],
+  /** the wide avenue ends this far before the market */
+  wideEndBeforeMarket: 200,
+} as const;
+
+/** Four-way junctions with traffic lights in the city. */
+export const JUNCTION = {
+  greenSeconds: 7,
+  yellowSeconds: 1.5,
+  /** red for the main road (cross traffic goes) */
+  redSeconds: 5,
+  /** half width of the cross road */
+  crossHalfWidth: 7,
+} as const;
+
+/** Thieves who grab vegetables off the truck while it crawls through a jam. */
+export const THIEVES = {
+  /** only while the truck is slower than this */
+  maxKmh: 15,
+  /** seconds between thieves */
+  intervalMin: 2.5,
+  intervalMax: 5,
+  maxAtOnce: 3,
+  kgMin: 8,
+  kgMax: 22,
+  /** seconds a thief needs at the truck to grab a sack */
+  grabSeconds: 1.1,
+  /** horn scares off thieves within this many metres */
+  hornRange: 14,
+} as const;

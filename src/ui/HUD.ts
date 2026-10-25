@@ -2,6 +2,7 @@
 
 import { ECONOMY } from '../config/economy';
 import type { RouteDef } from '../config/route';
+import { BROKEN_ROAD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { formatBn, formatDistance, formatKg, formatTaka, formatTakaPerKg, toBnDigits } from '../utils/bnNumber';
 import { ChaseMeter } from './ChaseMeter';
@@ -53,7 +54,7 @@ function speedometerSvg(): string {
   </svg>`;
 }
 
-const ICON: Record<string, string> = { farm: '{farm}', barrier: '{hand}', roadTax: '{receipt}', roadToll: '{receipt}', bridgeToll: '{bridge}', rail: '{train}', market: '{cart}' };
+const ICON: Record<string, string> = { farm: '{farm}', barrier: '{hand}', roadTax: '{receipt}', roadToll: '{receipt}', bridgeToll: '{bridge}', rail: '{train}', market: '{cart}', roadworks: '{cement}', junction: '{trafficlight}' };
 
 export class HUD {
   readonly root: HTMLDivElement;
@@ -211,11 +212,11 @@ export class HUD {
 
     this.chaseMeter.update(g.chase.active, g.chase.meter, g.chase.gap);
     setText(this.weatherEl, g.weather.label);
-    const zone = g.slowZones.current;
-    this.limitBadge.classList.toggle('hidden', !zone);
-    if (zone) {
-      setText(this.limitBadge, toBnDigits(zone.limitKmh));
-      this.limitBadge.classList.toggle('over', kmh > zone.limitKmh + 5);
+    const limit = g.slowZones.current?.limitKmh ?? (g.brokenRoads.current ? BROKEN_ROAD.maxKmh : null);
+    this.limitBadge.classList.toggle('hidden', limit === null);
+    if (limit !== null) {
+      setText(this.limitBadge, toBnDigits(limit));
+      this.limitBadge.classList.toggle('over', kmh > limit + 5);
     }
 
     if (this.warnTimer > 0) {

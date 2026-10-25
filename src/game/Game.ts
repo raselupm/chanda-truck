@@ -22,7 +22,12 @@ import { MAX_CRATES, Truck } from '../vehicle/Truck';
 import { TruckController } from '../vehicle/TruckController';
 import { Barrier } from '../world/Barrier';
 import { Bridge } from '../world/Bridge';
+import { BrokenRoads } from '../world/BrokenRoads';
 import { Market } from '../world/City';
+import { CityClutter } from '../world/CityClutter';
+import { Junction } from '../world/Junction';
+import { Roadworks } from '../world/Roadworks';
+import { Thieves } from '../world/Thieves';
 import { Environment } from '../world/Environment';
 import { Pedestrians } from '../world/Pedestrians';
 import { RailCrossing } from '../world/RailCrossing';
@@ -67,6 +72,9 @@ export class Game {
   readonly chase: Chasers;
   readonly pedestrians: Pedestrians;
   readonly slowZones: SlowZones;
+  readonly brokenRoads: BrokenRoads;
+  readonly thieves: Thieves;
+  readonly clutter: CityClutter;
   readonly weather = new Weather();
   /** every set piece (farms, barriers, tolls, bridges, market) */
   pieces: SetPiece[] = [];
@@ -108,7 +116,10 @@ export class Game {
     this.chase = new Chasers(this);
     this.pedestrians = new Pedestrians(this);
     this.slowZones = new SlowZones(this);
-    scene.add(this.pedestrians.group, this.slowZones.group);
+    this.brokenRoads = new BrokenRoads(this);
+    this.thieves = new Thieves(this);
+    this.clutter = new CityClutter(this.track);
+    scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.clutter.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
     this.hud = new HUD(uiRoot, this);
@@ -157,7 +168,10 @@ export class Game {
     this.streamer.setTrack(this.track);
     this.scenery.setTrack(this.track);
     this.truck.setTrack(this.track);
+    this.clutter.setTrack(this.track);
     this.slowZones.build(route.slowZones);
+    this.brokenRoads.build(route.broken);
+    this.thieves.reset();
 
     for (const e of route.events) {
       let piece: SetPiece;
@@ -186,6 +200,14 @@ export class Game {
           break;
         case 'market':
           piece = new Market(e, this);
+          this.routePieces.push(piece);
+          break;
+        case 'roadworks':
+          piece = new Roadworks(e, this);
+          this.routePieces.push(piece);
+          break;
+        case 'junction':
+          piece = new Junction(e, this);
           this.routePieces.push(piece);
           break;
       }
@@ -256,6 +278,7 @@ export class Game {
     this.touch.show(false);
     this.chase.reset();
     this.traffic.reset();
+    this.thieves.reset();
     this.state.force('MENU');
     this.menu.show(true);
   }
@@ -370,6 +393,17 @@ export class Game {
     this.refreshCrates();
   }
 
+  /** Thieves made off with kg of vegetables (booked as lost cargo). Returns the kg actually taken. */
+  stealCargo(kg: number, locationBn: string): number {
+    const removed = this.cargo.removeProportional(kg);
+    if (removed.kg <= 0) return 0;
+    this.ledger.add({ category: 'CARGO_LOSS', amount: removed.value, cash: false, kg: removed.kg, labelBn: 'জ্যামে সবজি চুরি', locationBn, t: this.runTime });
+    this.hud.floatText(`-${formatKg(removed.kg)} সবজি চুরি!`, 'bad');
+    this.sound.beep();
+    this.refreshCrates();
+    return removed.kg;
+  }
+
   private reactToHorn(r: HonkResult): void {
     if (r.heavy > 0) this.hud.toast('{bus} বড় গাড়িও অবশেষে সাইড দিল!');
     else if (r.small > 0) this.hud.toast('{horn} সামনের গাড়ি সাইড দিল');
@@ -453,17 +487,22 @@ export class Game {
         t.rumble = false;
         this.hud.tollMode = false;
         this.wind = 0;
+        this.brokenRoads.update();
         t.update(dt, inp);
         for (const p of this.pieces) p.update(dt);
         this.traffic.update(dt);
         this.chase.update(dt);
         this.pedestrians.update(dt);
         this.slowZones.update(dt);
+        this.thieves.update(dt);
         const honking = this.input.horn && !this.modal && phase !== 'ARRIVAL';
         this.sound.horn(honking);
         // Horn: each press is a tap; holding it counts as a long press (buses & trucks need that or 3 taps)
         if (honking && phase === 'HIGHWAY') {
-          if (!this.wasHonking) this.reactToHorn(this.traffic.honk('tap'));
+          if (!this.wasHonking) {
+            if (this.thieves.scare() > 0) this.hud.toast('{horn} হর্ন শুনে চোর পালালো!');
+            this.reactToHorn(this.traffic.honk('tap'));
+          }
           this.hornHeld += dt;
           if (this.hornHeld >= TRAFFIC.longHornSeconds && !this.longHornSent) {
             this.longHornSent = true;
@@ -493,6 +532,7 @@ export class Game {
     if (this.streamer.update(t.s)) {
       const [a, b] = this.streamer.window;
       this.scenery.rebuild(a, b);
+      this.clutter.rebuild(a, b);
     }
     for (const p of this.pieces) {
       const [a, b] = p.visibleRange();

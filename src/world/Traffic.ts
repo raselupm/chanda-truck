@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
-import { ROAD, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
+import { BROKEN_ROAD, CITY, ROAD, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
 import { clamp, damp } from '../utils/math';
@@ -41,6 +41,11 @@ interface Vehicle {
   /** >0 while pulled aside after the player honked */
   yieldTimer: number;
   homeD: number;
+  /** s of the last toll booth this vehicle has paid at, and seconds spent paying at the current one */
+  servedS: number;
+  serve: number;
+  /** queued in a jam: kept alive (even far ahead) until it has passed this s */
+  pinUntil: number;
 }
 
 const MIX: Record<ZoneKind, [TrafficKind, number][]> = {
@@ -110,6 +115,7 @@ export class Traffic {
           active: false, kind, mesh: g, s: 0, d: 0, targetD: 0, speed: 0, cruise: 0, dir: 1,
           len: dims.len, wid: dims.wid, heavy: kind === 'bus' || kind === 'truck',
           overtaker: false, overtakeState: 0, stalled: 0, hitCooldown: 0, hop: 0, yieldTimer: 0, homeD: 0, honks: 0, honkTimer: 0,
+          servedS: -Infinity, serve: 0, pinUntil: -Infinity,
           art: art.group, rear: art.rear, sides: art.sides,
         });
       }
@@ -171,12 +177,15 @@ export class Traffic {
       if (v.dir === -1) {
         if (v.overtaker && v.overtakeState === 1 && v.s - t.s < 320) {
           v.overtakeState = 2;
-          v.targetD = 0.25 * g.track.halfWidth(v.s);
+          v.targetD = g.track.laneD(v.s, false);
         }
         continue;
       }
       const gap = v.s - t.s;
       if (gap <= 0 || gap > 140 || Math.abs(v.d - t.d) > 2.6 || v.yieldTimer > 0) continue;
+      // stuck in a queue, or a bus on the city avenue with nowhere to go
+      const wide = g.track.isWide(v.s);
+      if (v.speed < 1 || (wide && v.heavy)) continue;
       if (v.heavy && press === 'tap') {
         v.honks++;
         v.honkTimer = TRAFFIC.heavyHonkWindow;
@@ -185,8 +194,10 @@ export class Traffic {
           continue;
         }
       }
-      const hw = g.track.halfWidth(v.s);
-      const target = v.d > -hw * 0.5 ? -0.75 * hw : -0.25 * hw;
+      const inner = g.track.laneD(v.s, false);
+      const outer = g.track.laneD(v.s, true);
+      // on the avenue small vehicles squeeze against the rickshaws; elsewhere they swap lanes
+      const target = wide ? -(CITY.openLanes * CITY.laneWidth + 0.45) : v.d > -(inner + outer) / 2 ? -outer : -inner;
       // only if the other lane is free next to it
       const blocked = this.pool.some(
         (o) => o !== v && o.active && o.dir === 1 && Math.abs(o.d - target) < 1.6 && Math.abs(o.s - v.s) < (o.len + v.len) / 2 + 6,
@@ -226,7 +237,7 @@ export class Traffic {
   /** Is s inside a zone where unresolved set pieces forbid traffic? */
   private excluded(s: number): boolean {
     for (const p of this.game.pieces) {
-      if (!p.blocking || p.allowsQueue) continue;
+      if (!p.blocking || p.allowsQueue || p.controlsTraffic) continue;
       if (s > p.s - 230 && s < p.s + 40) return true;
     }
     return false;
@@ -234,7 +245,7 @@ export class Traffic {
 
   private nextBlockingS(fromS: number): number {
     let best = Infinity;
-    for (const p of this.game.pieces) if (p.blocking && p.s > fromS && p.s < best) best = p.s;
+    for (const p of this.game.pieces) if (p.blocking && !p.controlsTraffic && p.s > fromS && p.s < best) best = p.s;
     return best;
   }
 
@@ -242,7 +253,7 @@ export class Traffic {
   private stopLineAhead(fromS: number): number {
     let best = Infinity;
     for (const p of this.game.pieces) {
-      if (!p.blocking || p.s <= fromS) continue;
+      if (!p.blocking || p.controlsTraffic || p.s <= fromS) continue;
       const line = p.s - p.queueGap;
       if (line < best) best = line;
     }
@@ -253,7 +264,7 @@ export class Traffic {
   private stopLineBehind(fromS: number): number {
     let best = -Infinity;
     for (const p of this.game.pieces) {
-      if (!p.blocking || !p.allowsQueue || p.s >= fromS) continue;
+      if (!p.blocking || !p.allowsQueue || p.controlsTraffic || p.s >= fromS) continue;
       const line = p.s + p.queueGap;
       if (line > best) best = line;
     }
@@ -269,6 +280,8 @@ export class Traffic {
     const s = truckS + min + Math.random() * (TRAFFIC.spawnAheadMax - min);
     if (s > g.track.length - 300) return;
     if (this.excluded(s)) return;
+    // not in the middle of a toll queue, roadworks or junction
+    for (const p of g.pieces) if (p.controlsTraffic && s > p.s - 150 && s < p.s + 100) return;
     // oncoming vehicles would have to drive through a closed barrier to reach us
     if (dir === -1 && this.nextBlockingS(truckS) < s + 60) return;
     const zone = g.track.zone(s);
@@ -282,24 +295,30 @@ export class Traffic {
         break;
       }
     }
+    // on the city avenue the rickshaws are parked in the occupied lanes, not in the open one
+    if (kind === 'rickshaw' && g.track.wideness(s) > 0) kind = 'cng';
     const v = this.pool.find((p) => !p.active && p.kind === kind);
     if (!v) return;
-    const hw = g.track.halfWidth(s);
     const slow = kind === 'rickshaw' || kind === 'cng';
     const outer = slow || Math.random() < 0.5;
-    const lane = (outer ? 0.75 : 0.25) * hw;
+    const lane = g.track.laneD(s, outer);
     const d = dir === 1 ? -lane : lane;
     // keep a gap from others in the same lane
     for (const o of this.pool) {
-      if (o.active && o.dir === dir && Math.abs(o.d - d) < 1.5 && Math.abs(o.s - s) < 30) return;
+      if (o.active && o.dir === dir && Math.abs(o.d - d) < 3 && Math.abs(o.s - s) < 30) return;
     }
-    const [lo, hi] = SPEED_KMH[kind];
+    this.activate(v, s, d, dir);
+    v.overtaker = dir === -1 && v.heavy && !outer && Math.random() < TRAFFIC.overtakerChance;
+  }
+
+  private activate(v: Vehicle, s: number, d: number, dir: 1 | -1): void {
+    const [lo, hi] = SPEED_KMH[v.kind];
     v.active = true;
     v.s = s;
     v.d = v.targetD = d;
     v.dir = dir;
     v.cruise = v.speed = (lo + Math.random() * (hi - lo)) / 3.6;
-    v.overtaker = dir === -1 && v.heavy && !outer && Math.random() < TRAFFIC.overtakerChance;
+    v.overtaker = false;
     v.overtakeState = 0;
     v.stalled = 0;
     v.hitCooldown = 0;
@@ -308,9 +327,49 @@ export class Traffic {
     v.homeD = d;
     v.honks = 0;
     v.honkTimer = 0;
+    v.servedS = -Infinity;
+    v.serve = 0;
+    v.pinUntil = -Infinity;
     v.mesh.visible = true;
     this.paint(v);
     v.mesh.rotation.set(0, dir === 1 ? 0 : Math.PI, 0);
+  }
+
+  /**
+   * A jam: `count` vehicles waiting nose to tail behind the stop line at lineS, in lane d (our direction).
+   * They drive on to `homeD` once past. Returns how many were placed.
+   */
+  spawnQueue(lineS: number, d: number, homeD: number, count: number): number {
+    const kinds: TrafficKind[] = ['truck', 'car', 'bus', 'cng', 'car', 'truck', 'cng', 'car'];
+    const first = Math.floor(Math.random() * kinds.length);
+    let front = lineS - 0.3;
+    let placed = 0;
+    for (let i = 0; i < count; i++) {
+      const want = kinds[(first + i) % kinds.length];
+      const v = this.pool.find((p) => !p.active && p.kind === want) ?? this.pool.find((p) => !p.active && p.kind !== 'rickshaw');
+      if (!v) break;
+      const s = front - v.len / 2;
+      // somebody is already standing there: queue starts behind them
+      const there = this.pool.find((o) => o.active && o.dir === 1 && Math.abs(o.d - d) < 2.5 && Math.abs(o.s - s) < (o.len + v.len) / 2 + 1);
+      if (there) {
+        front = there.s - there.len / 2 - 2.4;
+        i--;
+        if (front < lineS - 120) break;
+        continue;
+      }
+      this.activate(v, s, d, 1);
+      v.speed = 0;
+      v.homeD = homeD;
+      v.pinUntil = lineS + 40;
+      front -= v.len + 2.2 + Math.random() * 0.8;
+      placed++;
+    }
+    return placed;
+  }
+
+  /** Is a vehicle (our direction) occupying [fromS, toS] near lateral offset d? */
+  vehicleBetween(fromS: number, toS: number, d: number): boolean {
+    return this.pool.some((v) => v.active && v.dir === 1 && Math.abs(v.d - d) < 2.4 && v.s - v.len / 2 < toS && v.s + v.len / 2 > fromS);
   }
 
   update(dt: number): void {
@@ -327,19 +386,30 @@ export class Traffic {
       if (this.activeCount(-1, truck.s + 20) < wantOn) this.trySpawn(-1);
     }
 
+    let lead: Vehicle | null = null;
+    let stopAt: number | null = null;
     for (const v of this.pool) {
       if (!v.active) continue;
+      lead = null;
+      stopAt = null;
       if (v.stalled > 0) {
         v.stalled -= dt;
         v.speed = damp(v.speed, 0, 3, dt);
       } else {
-        // follow the vehicle ahead in the same lane
+        // follow the vehicle ahead in the same lane, bumper to bumper in a jam
         let target = v.cruise;
+        if (g.track.isBroken(v.s)) target = Math.min(target, BROKEN_ROAD.maxKmh / 3.6);
+        lead = null;
+        let leadGap = Infinity;
         for (const o of this.pool) {
           if (o === v || !o.active || o.dir !== v.dir || Math.abs(o.d - v.d) > 1.6) continue;
-          const gap = (o.s - v.s) * v.dir;
-          if (gap > 0 && gap < 22) target = Math.min(target, o.speed);
+          const gap = (o.s - v.s) * v.dir - (o.len + v.len) / 2;
+          if (gap > -2 && gap < leadGap) {
+            leadGap = gap;
+            lead = o;
+          }
         }
+        if (lead && leadGap < 40) target = Math.min(target, Math.max(0, lead.speed + (leadGap - 2.5) * 0.35));
         // nobody drives through a closed barrier / gate: queue up at the stop line
         const front = v.s + (v.dir * v.len) / 2;
         if (v.dir === 1) {
@@ -349,21 +419,39 @@ export class Traffic {
           const gap = front - this.stopLineBehind(v.s);
           if (gap < 30) target = Math.min(target, Math.max(0, gap - 1.5) * 0.6);
         }
-        v.speed = damp(v.speed, target, 1.2, dt);
+        // toll booths, flagmen and traffic lights
+        stopAt = null;
+        for (const p of g.pieces) {
+          if (!p.controlsTraffic) continue;
+          const line = p.stopLine(v.dir);
+          if (line === null || v.servedS === p.s) continue;
+          const gap = (line - front) * v.dir;
+          if (gap < -0.5 || gap > 45) continue;
+          const service = p.serviceTime;
+          // a light that just changed, too close to stop: carry on through
+          if (!service && v.speed > 3 && gap < ((v.speed * v.speed) / 5) * WORLD.speedScale) continue;
+          target = Math.min(target, Math.max(0, gap - 0.3) * 0.35);
+          if (stopAt === null || gap < (stopAt - front) * v.dir) stopAt = line;
+          if (service && gap < 1.2 && v.speed < 0.5 && (v.serve += dt) >= service) {
+            v.servedS = p.s;
+            v.serve = 0;
+            p.served();
+          }
+        }
+        v.speed = damp(v.speed, target, target < v.speed ? 3.5 : 1.2, dt);
       }
 
       // Oncoming overtaker swings into our inner lane, then back
       if (v.overtaker) {
         const gap = v.s - truck.s;
-        const hw = g.track.halfWidth(v.s);
         if (v.overtakeState === 0 && gap < 430 && gap > 260) {
           v.overtakeState = 1;
-          v.targetD = -0.25 * hw;
+          v.targetD = -g.track.laneD(v.s, false);
           g.sound.otherHorn();
           g.hud.toast('{warning} উল্টো দিক থেকে বাস আপনার লেনে ওভারটেক করছে!');
         } else if (v.overtakeState === 1 && gap < 200) {
           v.overtakeState = 2;
-          v.targetD = 0.25 * hw;
+          v.targetD = g.track.laneD(v.s, false);
         }
       }
       if (v.honkTimer > 0 && (v.honkTimer -= dt) <= 0) v.honks = 0;
@@ -377,15 +465,37 @@ export class Traffic {
           else v.yieldTimer = 1;
         }
       }
+      // lane merges (toll lane, roadworks, the one open lane on the city avenue)
+      if (v.yieldTimer <= 0 && v.overtakeState !== 1 && v.stalled <= 0) {
+        if (g.track.wideness(v.s + 30 * v.dir) > 0.5) v.homeD = -v.dir * g.track.laneD(v.s + 30 * v.dir, false);
+        let guide: number | null = null;
+        for (const p of g.pieces) {
+          if (p.controlsTraffic && (guide = p.laneAt(v.s, v.dir)) !== null) break;
+        }
+        v.targetD = guide ?? v.homeD;
+      }
       v.d = damp(v.d, v.targetD, v.overtaker ? 2.6 : v.yieldTimer > 0 ? 2.2 : 1.6, dt);
       v.s += v.speed * WORLD.speedScale * v.dir * dt;
+      // never roll past a stop line or into the one ahead
+      if (v.stalled <= 0) {
+        if (stopAt !== null && (stopAt - (v.s + (v.dir * v.len) / 2)) * v.dir < 0) {
+          v.s = stopAt - (v.dir * v.len) / 2;
+          v.speed = 0;
+        }
+        if (lead && (lead.s - v.s) * v.dir - (lead.len + v.len) / 2 < 0.8 && Math.abs(lead.d - v.d) < 1.6) {
+          v.s = lead.s - v.dir * ((lead.len + v.len) / 2 + 0.8);
+          v.speed = Math.min(v.speed, lead.speed);
+        }
+      }
+      if (v.pinUntil > -Infinity && v.s > v.pinUntil) v.pinUntil = -Infinity;
       v.hitCooldown = Math.max(0, v.hitCooldown - dt);
       if (v.hop > 0) v.hop = Math.max(0, v.hop - dt);
 
       const rel = v.s - truck.s;
       // Writing is unreadable far away: skip those draw calls
       v.art.visible = rel > -40 && rel < 170;
-      if (rel < -TRAFFIC.despawnBehind || rel > TRAFFIC.spawnAheadMax + 80 || (this.excluded(v.s) && Math.abs(rel) > 120)) {
+      const pinned = v.pinUntil > v.s;
+      if (rel < -TRAFFIC.despawnBehind || (!pinned && (rel > TRAFFIC.spawnAheadMax + 80 || (this.excluded(v.s) && Math.abs(rel) > 120)))) {
         v.active = false;
         v.mesh.visible = false;
         continue;
@@ -402,7 +512,6 @@ export class Traffic {
   private collide(v: Vehicle): void {
     const g = this.game;
     const t = g.truck;
-    if (v.hitCooldown > 0) return;
     const rel = t.heading - g.track.headingAt(t.s);
     const thl = TRUCK.length / 2;
     const thw = TRUCK.width / 2 + Math.abs(Math.sin(rel)) * thl * 0.8;
@@ -411,6 +520,13 @@ export class Traffic {
     const ovS = thl + v.len / 2 - Math.abs(ds);
     const ovD = thw + v.wid / 2 - Math.abs(dd);
     if (ovS <= 0 || ovD <= 0) return;
+    // creeping up to a queued / slower vehicle: just stop behind it
+    if (v.dir === 1 && ds > 0 && ovS < ovD && t.kmh - v.speed * 3.6 < 12) {
+      t.clampFront(v.s - v.len / 2 - 0.2);
+      t.speed = Math.min(t.speed, v.speed);
+      return;
+    }
+    if (v.hitCooldown > 0) return;
 
     v.hitCooldown = 1.2;
     g.stats.collisions++;
