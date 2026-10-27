@@ -21,6 +21,7 @@ import { CameraRig } from '../vehicle/CameraRig';
 import { Chasers } from '../vehicle/Chasers';
 import { MAX_CRATES, Truck } from '../vehicle/Truck';
 import { TruckController } from '../vehicle/TruckController';
+import { AdBoards } from '../world/AdBoards';
 import { Barrier } from '../world/Barrier';
 import { Bridge } from '../world/Bridge';
 import { BrokenRoads } from '../world/BrokenRoads';
@@ -78,6 +79,7 @@ export class Game {
   readonly brokenRoads: BrokenRoads;
   readonly thieves: Thieves;
   readonly mud: Mud;
+  private ads = new AdBoards();
   readonly clutter: CityClutter;
   readonly weather = new Weather();
   /** every set piece (farms, barriers, tolls, bridges, market) */
@@ -124,7 +126,7 @@ export class Game {
     this.thieves = new Thieves(this);
     this.mud = new Mud(this);
     this.clutter = new CityClutter(this.track);
-    scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group);
+    scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group, this.ads.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
     this.hud = new HUD(uiRoot, this);
@@ -219,6 +221,7 @@ export class Game {
       this.pieces.push(piece);
       this.piecesGroup.add(piece.group);
     }
+    this.ads.build(route, this.track);
   }
 
   private closeOverlays(): void {
