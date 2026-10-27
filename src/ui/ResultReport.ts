@@ -157,9 +157,11 @@ export class ResultReport {
     rank.textContent = 'লিডারবোর্ডে সেভ হচ্ছে…';
     const res = await submitted;
     if (this.last !== r) return; // a newer report replaced this one
+    // leaderboard unavailable: leave it out rather than show an error
     rank.innerHTML = res
       ? rich(`{user} ${esc(player.name)} — মোট <b>${formatBn(res.me.total)}</b> পয়েন্ট${res.me.rank ? `, অবস্থান <b>#${formatBn(res.me.rank)}</b>` : ''}`)
-      : 'লিডারবোর্ডে সেভ করা যায়নি — ইন্টারনেট সংযোগ দেখুন।';
+      : '';
+    rank.classList.toggle('hidden', !res);
     await loadBoard(board);
   }
 

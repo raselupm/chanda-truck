@@ -60,11 +60,7 @@ export class NameDialog {
 }
 
 /** Renders the leaderboard into `box`; the player's own row is highlighted (and appended if outside the top). */
-export function renderBoard(box: HTMLElement, board: Board | null): void {
-  if (!board) {
-    box.innerHTML = '<div class="lb-empty">লিডারবোর্ড এখন লোড হচ্ছে না — ইন্টারনেট সংযোগ দেখুন।</div>';
-    return;
-  }
+export function renderBoard(box: HTMLElement, board: Board): void {
   if (board.top.length === 0) {
     box.innerHTML = '<div class="lb-empty">এখনো কেউ পয়েন্ট পায়নি — প্রথম হোন!</div>';
     return;
@@ -82,8 +78,14 @@ export function renderBoard(box: HTMLElement, board: Board | null): void {
     <tbody>${rows}</tbody></table></div>`;
 }
 
-/** Fetch and render; shows a loading line meanwhile. */
-export async function loadBoard(box: HTMLElement): Promise<void> {
-  box.innerHTML = '<div class="lb-empty">লোড হচ্ছে…</div>';
-  renderBoard(box, await fetchBoard());
+/**
+ * Fetch and render. If the leaderboard can't be loaded, `wrap` (the whole leaderboard block) is hidden
+ * instead of showing an error; it comes back on the next successful load.
+ */
+export async function loadBoard(box: HTMLElement, wrap: HTMLElement = box): Promise<boolean> {
+  if (!wrap.classList.contains('hidden')) box.innerHTML = '<div class="lb-empty">লোড হচ্ছে…</div>';
+  const board = await fetchBoard();
+  wrap.classList.toggle('hidden', !board);
+  if (board) renderBoard(box, board);
+  return !!board;
 }

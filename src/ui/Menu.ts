@@ -14,6 +14,8 @@ export class Menu {
   private startId = DEFAULT_START_ID;
   private playerLine: HTMLElement;
   private board: HTMLElement;
+  /** heading + note + table, hidden while the leaderboard can't be loaded */
+  private boardWrap: HTMLElement;
   private nameDialog: NameDialog;
 
   constructor(parent: HTMLElement, sound: Sound, onStart: (startId: string) => void) {
@@ -61,9 +63,10 @@ export class Menu {
     const mute = button(sound.muted ? '{mute} শব্দ বন্ধ' : '{sound} শব্দ চালু', 'btn btn-ghost', () => sound.toggleMute(), actions);
     sound.onMuteChange((m) => setText(mute, m ? '{mute} শব্দ বন্ধ' : '{sound} শব্দ চালু'));
 
-    el('h3', '', '{trophy} লিডারবোর্ড', card);
-    el('div', 'lb-note', 'কাওরান বাজারে লাভ করে পৌঁছালে পয়েন্ট: প্রতি ৳১০০ লাভে ১ পয়েন্ট, দ্রুত চালালে সর্বোচ্চ ২ গুণ, ধীরে চালালে অর্ধেক।', card);
-    this.board = el('div', 'leaderboard', '', card);
+    this.boardWrap = el('div', 'lb-section hidden', '', card);
+    el('h3', '', '{trophy} লিডারবোর্ড', this.boardWrap);
+    el('div', 'lb-note', 'কাওরান বাজারে লাভ করে পৌঁছালে পয়েন্ট: প্রতি ৳১০০ লাভে ১ পয়েন্ট, দ্রুত চালালে সর্বোচ্চ ২ গুণ, ধীরে চালালে অর্ধেক।', this.boardWrap);
+    this.board = el('div', 'leaderboard', '', this.boardWrap);
 
     el('div', 'controls-legend', isTouchDevice
       ? 'বাঁ দিকে {left} {right} স্টিয়ারিং, ডান দিকে গ্যাস/ব্রেক। ফোন খাড়া (পোর্ট্রেট) করে ধরুন।'
@@ -72,18 +75,18 @@ export class Menu {
 
     this.nameDialog = new NameDialog(parent);
     this.renderPlayer();
-    void loadBoard(this.board);
+    void loadBoard(this.board, this.boardWrap);
   }
 
   show(on: boolean): void {
     this.root.classList.toggle('hidden', !on);
-    if (on) void loadBoard(this.board);
+    if (on) void loadBoard(this.board, this.boardWrap);
   }
 
   private async askName(): Promise<boolean> {
     const name = await this.nameDialog.open();
     this.renderPlayer();
-    if (name) void loadBoard(this.board);
+    if (name) void loadBoard(this.board, this.boardWrap);
     return !!name;
   }
 
