@@ -158,7 +158,7 @@ export class ResultReport {
     const res = await submitted;
     if (this.last !== r) return; // a newer report replaced this one
     rank.innerHTML = res
-      ? rich(`{user} ${esc(player.name)} — মোট <b>${formatBn(res.me.total)}</b> পয়েন্ট, অবস্থান <b>#${formatBn(res.me.rank)}</b>`)
+      ? rich(`{user} ${esc(player.name)} — মোট <b>${formatBn(res.me.total)}</b> পয়েন্ট${res.me.rank ? `, অবস্থান <b>#${formatBn(res.me.rank)}</b>` : ''}`)
       : 'লিডারবোর্ডে সেভ করা যায়নি — ইন্টারনেট সংযোগ দেখুন।';
     await loadBoard(board);
   }

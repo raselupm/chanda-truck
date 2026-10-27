@@ -22,6 +22,9 @@ interface Env {
   DB: D1Database;
   ASSETS: { fetch(req: Request): Promise<Response> };
 }
+interface Ctx {
+  waitUntil(p: Promise<unknown>): void;
+}
 
 interface PlayerRow {
   id: string;
@@ -31,6 +34,7 @@ interface PlayerRow {
   runs: number;
   deliveries: number;
   total_profit: number;
+  created_at: number;
   best_route: string | null;
 }
 
@@ -68,20 +72,39 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 /** Leaderboard order: points, then best run, deliveries, profit; whoever got there first wins a full tie. */
 const ORDER = 'p.total_points DESC, p.best_points DESC, p.deliveries DESC, p.total_profit DESC, p.created_at ASC';
 
-/** 1, 2, 3… — every player gets their own position. */
-async function rankOf(db: D1Database, playerId: string): Promise<number> {
+/** Same as migrations/0002 — made here too, since deploys don't run migrations. */
+const RANK_INDEX = `CREATE INDEX IF NOT EXISTS players_rank
+  ON players (total_points DESC, best_points DESC, deliveries DESC, total_profit DESC, created_at) WHERE runs > 0`;
+let indexReady = false;
+
+async function ensureIndex(db: D1Database): Promise<void> {
+  if (indexReady) return;
+  await db.prepare(RANK_INDEX).run();
+  indexReady = true;
+}
+
+/**
+ * 1, 2, 3… — counts only the players ahead (an index range), so it stays cheap as players grow.
+ * Players without points share the bottom and get no number (counting them would read the whole table).
+ */
+async function rankOf(db: D1Database, p: PlayerRow): Promise<number | null> {
+  if (p.runs <= 0 || p.total_points <= 0) return null;
   const row = await db
-    .prepare(`SELECT pos FROM (SELECT p.id, ROW_NUMBER() OVER (ORDER BY ${ORDER}) AS pos FROM players p WHERE p.runs > 0) WHERE id = ?`)
-    .bind(playerId)
-    .first<{ pos: number }>();
-  return row?.pos ?? 0;
+    .prepare(
+      `SELECT COUNT(*) AS n FROM players WHERE runs > 0 AND total_points >= ?1 AND (total_points > ?1 OR best_points > ?2
+         OR (best_points = ?2 AND (deliveries > ?3 OR (deliveries = ?3 AND (total_profit > ?4
+         OR (total_profit = ?4 AND created_at < ?5))))))`,
+    )
+    .bind(p.total_points, p.best_points, p.deliveries, p.total_profit, p.created_at)
+    .first<{ n: number }>();
+  return (row?.n ?? 0) + 1;
 }
 
 /** Player columns plus the route (start point id) of their best run. */
 const PLAYER_SELECT = `SELECT p.*, (SELECT r.start_id FROM runs r WHERE r.player_id = p.id
   ORDER BY r.points DESC, r.profit DESC, r.created_at ASC LIMIT 1) AS best_route FROM players p`;
 
-const publicRow = (p: PlayerRow, rank: number) => ({
+const publicRow = (p: PlayerRow, rank: number | null) => ({
   rank,
   route: p.best_route,
   name: p.name,
@@ -110,7 +133,7 @@ async function savePlayer(req: Request, db: D1Database): Promise<Response> {
 }
 
 /** POST /api/runs — record a finished run; the server computes the points itself. */
-async function saveRun(req: Request, db: D1Database): Promise<Response> {
+async function saveRun(req: Request, db: D1Database, ctx: Ctx): Promise<Response> {
   const b = await readJson(req);
   if (!b) return bad('invalid body');
   const { playerId, runId, startId, outcome } = b;
@@ -162,39 +185,55 @@ async function saveRun(req: Request, db: D1Database): Promise<Response> {
         )
         .bind(points, arrived ? 1 : 0, Math.round(profit), playerId),
     ]);
+    // new points can change the top list: let the next visitor rebuild it
+    if (points > 0) ctx.waitUntil(topCache().delete(TOP_CACHE_KEY));
   }
 
   const me = await db.prepare(`${PLAYER_SELECT} WHERE p.id = ?`).bind(playerId).first<PlayerRow>();
   if (!me) return bad('player missing', 500);
   const points = dup?.points ?? (await db.prepare('SELECT points FROM runs WHERE id = ?').bind(runId).first<{ points: number }>())?.points ?? 0;
-  return json({ points, me: publicRow(me, await rankOf(db, playerId)) });
+  return json({ points, me: publicRow(me, await rankOf(db, me)) });
+}
+
+/** The top list is the same for everybody: kept in Cloudflare's edge cache for a minute. */
+const TOP_CACHE_KEY = 'https://leaderboard.internal/top';
+const TOP_CACHE_SECONDS = 60;
+const topCache = () => (caches as unknown as { default: Cache }).default;
+
+async function topPlayers(db: D1Database, ctx: Ctx): Promise<PlayerRow[]> {
+  const hit = await topCache().match(TOP_CACHE_KEY);
+  if (hit) return hit.json();
+  const { results } = await db.prepare(`${PLAYER_SELECT} WHERE p.runs > 0 ORDER BY ${ORDER} LIMIT ?`).bind(TOP_N).all<PlayerRow>();
+  const res = new Response(JSON.stringify(results), { headers: { 'Cache-Control': `max-age=${TOP_CACHE_SECONDS}` } });
+  ctx.waitUntil(topCache().put(TOP_CACHE_KEY, res));
+  return results;
 }
 
 /** GET /api/leaderboard?player=<id> — the top players, plus the asking player's own row. */
-async function leaderboard(url: URL, db: D1Database): Promise<Response> {
-  const { results } = await db
-    .prepare(`${PLAYER_SELECT} WHERE p.runs > 0 ORDER BY ${ORDER} LIMIT ?`)
-    .bind(TOP_N)
-    .all<PlayerRow>();
+async function leaderboard(url: URL, db: D1Database, ctx: Ctx): Promise<Response> {
+  const results = await topPlayers(db, ctx);
   const playerId = url.searchParams.get('player');
   const top = results.map((p, i) => ({ ...publicRow(p, i + 1), mine: p.id === playerId }));
 
   let me = null;
   if (playerId && ID_RE.test(playerId)) {
     const row = await db.prepare(`${PLAYER_SELECT} WHERE p.id = ?`).bind(playerId).first<PlayerRow>();
-    if (row) me = publicRow(row, await rankOf(db, row.id));
+    // (in the top list already: its position is right there)
+    const inTop = top.findIndex((r) => r.mine);
+    if (row) me = publicRow(row, inTop >= 0 ? inTop + 1 : await rankOf(db, row));
   }
   return json({ top, me });
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: Ctx): Promise<Response> {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
-      if (url.pathname === '/api/leaderboard' && req.method === 'GET') return await leaderboard(url, env.DB);
+      await ensureIndex(env.DB);
+      if (url.pathname === '/api/leaderboard' && req.method === 'GET') return await leaderboard(url, env.DB, ctx);
       if (url.pathname === '/api/player' && req.method === 'POST') return await savePlayer(req, env.DB);
-      if (url.pathname === '/api/runs' && req.method === 'POST') return await saveRun(req, env.DB);
+      if (url.pathname === '/api/runs' && req.method === 'POST') return await saveRun(req, env.DB, ctx);
       return bad('not found', 404);
     } catch (e) {
       console.error(e);

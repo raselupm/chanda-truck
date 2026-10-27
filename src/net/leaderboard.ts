@@ -6,7 +6,8 @@ const NAME_KEY = 'sobjir-truck.playerName';
 const TIMEOUT_MS = 8000;
 
 export interface BoardRow {
-  rank: number;
+  /** null: no points yet (everyone without points shares the bottom) */
+  rank: number | null;
   /** start point id of the player's best run */
   route: string | null;
   name: string;
