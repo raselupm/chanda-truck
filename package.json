@@ -8,7 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "social-images": "bash scripts/social/render.sh"
+    "social-images": "bash scripts/social/render.sh",
+    "dev:api": "npx wrangler d1 migrations apply chanda-truck --local && npx wrangler dev --port 8787",
+    "db:migrate": "npx wrangler d1 migrations apply chanda-truck --remote",
+    "deploy": "npm run build && npx wrangler deploy"
   },
   "dependencies": {
     "@fontsource/hind-siliguri": "5.3.0",

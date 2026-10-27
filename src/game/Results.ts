@@ -4,7 +4,7 @@ import { VEGETABLES, type VegId } from '../config/vegetables';
 import type { Cargo } from './Cargo';
 import type { Ledger } from './Ledger';
 
-export type Outcome = 'arrived' | 'crash' | 'toll';
+export type Outcome = 'arrived' | 'crash' | 'toll' | 'helper';
 
 export interface RunStats {
   barriersBroken: number;

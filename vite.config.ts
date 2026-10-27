@@ -30,7 +30,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', 'VITE_');
   return {
     base: './',
-    server: { host: true },
+    // Leaderboard API: run `npm run dev:api` alongside `npm run dev` to use it locally
+    server: { host: true, proxy: { '/api': 'http://localhost:8787' } },
     plugins: [seoFiles(env.VITE_SITE_URL ?? 'https://chanda-truck.rasel.me')],
     build: {
       target: 'es2020',

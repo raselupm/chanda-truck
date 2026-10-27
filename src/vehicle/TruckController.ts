@@ -34,6 +34,10 @@ export class TruckController {
   speedCapKmh = Infinity;
   /** 0..1 how wet the road is (longer braking, a little less steering) */
   wet = 0;
+  /** wheels sunk in mud: the truck can't move at all */
+  stuck = false;
+  /** being pushed out of the mud: no faster than this either way */
+  mudCapKmh = Infinity;
   private bumpPhase = 0;
 
   constructor(private track: Track) {}
@@ -117,6 +121,9 @@ export class TruckController {
     }
     if (this.speed < -revMax) this.speed = -revMax;
     if (this.speed > maxV) this.speed = maxV;
+    if (this.stuck) this.speed = 0;
+    const mudCap = this.mudCapKmh / 3.6;
+    if (Math.abs(this.speed) > mudCap) this.speed = Math.sign(this.speed) * mudCap;
     // Broken road: the potholes won't let you go faster (shed the extra speed quickly)
     const cap = this.speedCapKmh / 3.6;
     if (this.speed > cap) this.speed = Math.max(cap, this.speed - BROKEN_ROAD.slowDecel * dt);

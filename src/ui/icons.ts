@@ -54,6 +54,8 @@ export const ICONS: Record<string, string> = {
   left: S('<path d="M44 8L16 32l28 24z" fill="currentColor"/>'),
   right: S('<path d="M20 8l28 24-28 24z" fill="currentColor"/>'),
   play: S('<path d="M18 8l36 24-36 24z" fill="currentColor"/>'),
+  trophy: S('<path d="M16 8h32v14a16 16 0 0 1-32 0z" fill="#f4c430"/><path d="M16 13H6c0 10 5 16 12 17M48 13h10c0 10-5 16-12 17" fill="none" stroke="#f4c430" stroke-width="4"/><rect x="28" y="37" width="8" height="11" fill="#d9a520"/><rect x="18" y="48" width="28" height="9" rx="2" fill="#8a6238"/>'),
+  user: S('<circle cx="32" cy="20" r="12" fill="currentColor"/><path d="M8 60c0-14 11-24 24-24s24 10 24 24z" fill="currentColor"/>'),
 
   // ---- vegetables
   tomato: S('<circle cx="32" cy="37" r="24" fill="#e03b2a"/><path d="M32 15l-7-7M32 15l7-7M32 15l-11 2M32 15l11 2" stroke="#2e9e3a" stroke-width="4" stroke-linecap="round"/><ellipse cx="23" cy="29" rx="6" ry="3.5" fill="#ff8a7a" opacity=".75"/>'),

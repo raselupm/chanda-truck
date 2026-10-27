@@ -4,7 +4,7 @@ export type Phase = 'MENU' | 'FARM' | 'HIGHWAY' | 'ARRIVAL' | 'RESULT' | 'GAME_O
 
 const ALLOWED: Record<Phase, readonly Phase[]> = {
   MENU: ['FARM'],
-  FARM: ['HIGHWAY', 'MENU'],
+  FARM: ['HIGHWAY', 'MENU', 'GAME_OVER'],
   HIGHWAY: ['ARRIVAL', 'GAME_OVER', 'MENU'],
   ARRIVAL: ['RESULT'],
   RESULT: ['MENU', 'FARM'],

@@ -6,6 +6,7 @@ import { ECONOMY } from '../config/economy';
 import { TRAFFIC } from '../config/tuning';
 import { DEFAULT_START_ID, generateRoute, START_POINTS, type FarmEvent, type RouteDef } from '../config/route';
 import { VEGETABLES, type VegId } from '../config/vegetables';
+import { player, submitRun } from '../net/leaderboard';
 import { BuyPanel } from '../ui/BuyPanel';
 import { ChandaDialog } from '../ui/ChandaDialog';
 import type { DebugOverlay } from '../ui/DebugOverlay';
@@ -27,6 +28,7 @@ import { Market } from '../world/City';
 import { CityClutter } from '../world/CityClutter';
 import { Junction } from '../world/Junction';
 import { Roadworks } from '../world/Roadworks';
+import { Mud } from '../world/Mud';
 import { Thieves } from '../world/Thieves';
 import { Environment } from '../world/Environment';
 import { Pedestrians } from '../world/Pedestrians';
@@ -45,6 +47,7 @@ import { GameState } from './GameState';
 import { Input, NO_INPUT, type DriveInput } from './Input';
 import { Ledger } from './Ledger';
 import { computeResults, type Outcome, type RunStats } from './Results';
+import { computeScore } from './Score';
 
 const ARRIVAL_BRAKE: DriveInput = { throttle: 0, brake: 0, steer: 0, handbrake: true };
 
@@ -74,6 +77,7 @@ export class Game {
   readonly slowZones: SlowZones;
   readonly brokenRoads: BrokenRoads;
   readonly thieves: Thieves;
+  readonly mud: Mud;
   readonly clutter: CityClutter;
   readonly weather = new Weather();
   /** every set piece (farms, barriers, tolls, bridges, market) */
@@ -118,8 +122,9 @@ export class Game {
     this.slowZones = new SlowZones(this);
     this.brokenRoads = new BrokenRoads(this);
     this.thieves = new Thieves(this);
+    this.mud = new Mud(this);
     this.clutter = new CityClutter(this.track);
-    scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.clutter.group);
+    scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
     this.hud = new HUD(uiRoot, this);
@@ -248,6 +253,7 @@ export class Game {
     this.buildRun();
 
     this.truck.reset(30, -1.6);
+    this.mud.reset();
     this.truck.maxFrontS = this.route.highwayStartS - 25;
     this.truck.loadFrac = 0;
     this.truckModel.setCrates([]);
@@ -279,6 +285,7 @@ export class Game {
     this.chase.reset();
     this.traffic.reset();
     this.thieves.reset();
+    this.mud.reset();
     this.state.force('MENU');
     this.menu.show(true);
   }
@@ -430,12 +437,17 @@ export class Game {
   }
 
   gameOver(reason: Exclude<Outcome, 'arrived'>): void {
-    if (this.state.phase !== 'HIGHWAY') return;
+    if (this.state.phase !== 'HIGHWAY' && this.state.phase !== 'FARM') return;
     this.state.set('GAME_OVER');
     this.truck.stop();
     this.sound.horn(false);
     this.chase.reset();
-    this.hud.warn(reason === 'crash' ? '{crash} ভয়াবহ সংঘর্ষ!' : '{siren} টোল প্লাজা ভাঙার চেষ্টা — ট্রাক জব্দ!', 'danger', 3);
+    const why = {
+      crash: '{crash} ভয়াবহ সংঘর্ষ!',
+      toll: '{siren} টোল প্লাজা ভাঙার চেষ্টা — ট্রাক জব্দ!',
+      helper: '{warning} হেল্পারকে নিতে ভুলে গেছেন! আবার চেষ্টা করেন।',
+    } as const;
+    this.hud.warn(why[reason], 'danger', 3);
     if (reason === 'toll') this.sound.whistle();
     this.pendingOutcome = reason;
     this.endTimer = 1.8;
@@ -455,7 +467,14 @@ export class Game {
     if (this.state.phase === 'ARRIVAL') this.state.set('RESULT');
     this.hud.show(false);
     this.touch.show(false);
-    this.result.show(computeResults(this.ledger, this.cargo, this.stats, outcome));
+    const r = computeResults(this.ledger, this.cargo, this.stats, outcome);
+    const market = this.route.events.find((e) => e.type === 'market');
+    const distance = (market?.s ?? this.track.length) - this.route.highwayStartS;
+    const score = computeScore({ arrived: outcome === 'arrived', profit: r.profit, driveTime: this.stats.highwayTime, distance });
+    const submitted = player.name
+      ? submitRun({ startId: this.startId, outcome, profit: r.profit, driveTime: this.stats.highwayTime, distance })
+      : null;
+    this.result.show(r, score, submitted);
   }
 
   nextBlockingPiece(fromS: number): SetPiece | null {
@@ -488,6 +507,7 @@ export class Game {
         this.hud.tollMode = false;
         this.wind = 0;
         this.brokenRoads.update();
+        this.mud.preUpdate();
         t.update(dt, inp);
         for (const p of this.pieces) p.update(dt);
         this.traffic.update(dt);
@@ -495,6 +515,7 @@ export class Game {
         this.pedestrians.update(dt);
         this.slowZones.update(dt);
         this.thieves.update(dt);
+        this.mud.update(dt);
         const honking = this.input.horn && !this.modal && phase !== 'ARRIVAL';
         this.sound.horn(honking);
         // Horn: each press is a tap; holding it counts as a long press (buses & trucks need that or 3 taps)

@@ -3,13 +3,18 @@
 import { ECONOMY } from '../config/economy';
 import { DEFAULT_START_ID, START_POINTS } from '../config/route';
 import type { Sound } from '../audio/Sound';
+import { player } from '../net/leaderboard';
 import { formatBn, formatKg, formatTaka } from '../utils/bnNumber';
 import { isTouchDevice } from '../utils/device';
 import { button, el, esc, setText } from './dom';
+import { loadBoard, NameDialog } from './Leaderboard';
 
 export class Menu {
   private root: HTMLElement;
   private startId = DEFAULT_START_ID;
+  private playerLine: HTMLElement;
+  private board: HTMLElement;
+  private nameDialog: NameDialog;
 
   constructor(parent: HTMLElement, sound: Sound, onStart: (startId: string) => void) {
     this.root = el('div', 'menu', '', parent);
@@ -46,19 +51,47 @@ export class Menu {
       chips.push(chip);
     }
 
+    this.playerLine = el('div', 'player-line', '', card);
     const actions = el('div', 'menu-actions', '', card);
-    button('খেলা শুরু {right}', 'btn btn-go big', () => onStart(this.startId), actions);
+    // A name is needed for the leaderboard: ask for it the first time
+    button('খেলা শুরু {right}', 'btn btn-go big', async () => {
+      if (!player.name && !(await this.askName())) return;
+      onStart(this.startId);
+    }, actions);
     const mute = button(sound.muted ? '{mute} শব্দ বন্ধ' : '{sound} শব্দ চালু', 'btn btn-ghost', () => sound.toggleMute(), actions);
     sound.onMuteChange((m) => setText(mute, m ? '{mute} শব্দ বন্ধ' : '{sound} শব্দ চালু'));
+
+    el('h3', '', '{trophy} লিডারবোর্ড', card);
+    el('div', 'lb-note', 'কাওরান বাজারে লাভ করে পৌঁছালে পয়েন্ট: প্রতি ৳১০০ লাভে ১ পয়েন্ট, দ্রুত চালালে সর্বোচ্চ ২ গুণ, ধীরে চালালে অর্ধেক।', card);
+    this.board = el('div', 'leaderboard', '', card);
 
     el('div', 'controls-legend', isTouchDevice
       ? 'বাঁ দিকে {left} {right} স্টিয়ারিং, ডান দিকে গ্যাস/ব্রেক। ফোন খাড়া (পোর্ট্রেট) করে ধরুন।'
       : '{keyboard} W/↑ গ্যাস · S/↓ ব্রেক/রিভার্স · A/D বা ←/→ স্টিয়ারিং · Space হ্যান্ডব্রেক · H হর্ন · C ক্যামেরা · M শব্দ · P/Esc বিরতি · Enter টাকা দিন · F3 ডিবাগ', card);
     el('div', 'disclaimer', 'এটি একটি ব্যঙ্গাত্মক খেলা। সব চরিত্র ও প্রতিষ্ঠান কাল্পনিক; কোনো দল বা ব্যক্তিকে নির্দেশ করে না। দাম ও অঙ্কগুলো উদাহরণমাত্র।', card);
+
+    this.nameDialog = new NameDialog(parent);
+    this.renderPlayer();
+    void loadBoard(this.board);
   }
 
   show(on: boolean): void {
     this.root.classList.toggle('hidden', !on);
+    if (on) void loadBoard(this.board);
+  }
+
+  private async askName(): Promise<boolean> {
+    const name = await this.nameDialog.open();
+    this.renderPlayer();
+    if (name) void loadBoard(this.board);
+    return !!name;
+  }
+
+  private renderPlayer(): void {
+    this.playerLine.innerHTML = '';
+    if (!player.name) return;
+    el('span', '', `{user} খেলোয়াড়: <b>${esc(player.name)}</b>`, this.playerLine);
+    button('নাম বদলান', 'btn btn-ghost small', () => void this.askName(), this.playerLine);
   }
 }
 

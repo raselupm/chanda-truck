@@ -3,9 +3,12 @@
 
 import { VEGETABLES } from '../config/vegetables';
 import type { ResultData } from '../game/Results';
+import type { Score } from '../game/Score';
+import { player, type submitRun } from '../net/leaderboard';
 import { formatBn, formatClock, formatKg, formatTaka } from '../utils/bnNumber';
 import { button, el, esc } from './dom';
 import { rich } from './icons';
+import { loadBoard } from './Leaderboard';
 import { renderShareImage } from './ShareImage';
 
 export const CATEGORY_COLORS = {
@@ -28,6 +31,7 @@ export const BREAKDOWN_LABELS: Record<keyof typeof CATEGORY_COLORS, string> = {
 export function outcomeLine(r: ResultData): { icon: string; text: string } {
   if (r.outcome === 'crash') return { icon: '{crash}', text: 'সংঘর্ষে যাত্রা শেষ — মাল পৌঁছায়নি' };
   if (r.outcome === 'toll') return { icon: '{siren}', text: 'টোল প্লাজায় ট্রাক জব্দ — মাল পৌঁছায়নি' };
+  if (r.outcome === 'helper') return { icon: '{warning}', text: 'হেল্পারকে নিতে ভুলে গেছেন! আবার চেষ্টা করেন।' };
   if (r.deliveredKg <= 0) return { icon: '{box}', text: 'কাওরান বাজারে পৌঁছেছেন — কিন্তু ট্রাক খালি' };
   return { icon: '{ok}', text: `কাওরান বাজারে পৌঁছেছেন — ${formatKg(r.deliveredKg)} মাল ডেলিভারি` };
 }
@@ -71,7 +75,8 @@ export class ResultReport {
     this.overlay.classList.add('hidden');
   }
 
-  show(r: ResultData): void {
+  /** `submitted` is the leaderboard save in flight (null when the player has no name). */
+  show(r: ResultData, score: Score, submitted: ReturnType<typeof submitRun> | null): void {
     this.last = r;
     const arrived = r.outcome === 'arrived';
     const o = outcomeLine(r);
@@ -90,6 +95,13 @@ export class ResultReport {
     this.card.innerHTML = rich(`
       <h2 class="rp-title">{clipboard} যাত্রার হিসাব</h2>
       <div class="rp-outcome ${arrived ? 'ok' : 'bad'}">${o.icon} ${esc(o.text)}</div>
+
+      <section class="rp-section rp-score">
+        <div class="rp-points"><small>{trophy} এই যাত্রার পয়েন্ট</small><b>${formatBn(score.points)}</b>
+          <span>${score.points > 0 ? `লাভ থেকে ${formatBn(score.base)} × গতির গুণ ${formatBn(score.speedFactor, 2)}` : arrived ? 'লাভ না হলে পয়েন্ট নেই' : 'মাল না পৌঁছালে পয়েন্ট নেই'}</span></div>
+        <div class="rp-rank"></div>
+        <div class="leaderboard"></div>
+      </section>
 
       <div class="rp-keys">
         ${stat('ক্ষেতের গড় দাম', `${perKg(r.avgFarmPerKg)}/কেজি`)}
@@ -132,6 +144,23 @@ export class ResultReport {
     button('{share} শেয়ার করুন', 'btn btn-buy', () => void this.share(), btns);
     this.overlay.classList.remove('hidden');
     this.overlay.scrollTop = 0;
+    void this.showRank(r, submitted);
+  }
+
+  private async showRank(r: ResultData, submitted: ReturnType<typeof submitRun> | null): Promise<void> {
+    const rank = this.card.querySelector('.rp-rank') as HTMLElement;
+    const board = this.card.querySelector('.leaderboard') as HTMLElement;
+    if (!submitted) {
+      rank.textContent = 'নাম ছাড়া লিডারবোর্ডে সেভ হয়নি।';
+      return;
+    }
+    rank.textContent = 'লিডারবোর্ডে সেভ হচ্ছে…';
+    const res = await submitted;
+    if (this.last !== r) return; // a newer report replaced this one
+    rank.innerHTML = res
+      ? rich(`{user} ${esc(player.name)} — মোট <b>${formatBn(res.me.total)}</b> পয়েন্ট, অবস্থান <b>#${formatBn(res.me.rank)}</b>`)
+      : 'লিডারবোর্ডে সেভ করা যায়নি — ইন্টারনেট সংযোগ দেখুন।';
+    await loadBoard(board);
   }
 
   private async share(): Promise<void> {

@@ -223,8 +223,11 @@ export const ROADWORKS = {
   length: 70,
   vehiclesMin: 5,
   vehiclesMax: 6,
+  /** oncoming vehicles already waiting at the far flagman */
+  oncomingMin: 4,
+  oncomingMax: 6,
   spawnDistance: 480,
-  /** the flagman holds us (red) until the truck is this close, then starts his cycle */
+  /** both flagmen hold their side (red) until the truck is this close, then the cycle starts with the other side */
   cycleFrom: 220,
   greenSeconds: 9,
   redSeconds: 8,
@@ -268,4 +271,25 @@ export const THIEVES = {
   grabSeconds: 1.1,
   /** horn scares off thieves within this many metres */
   hornRange: 14,
+} as const;
+
+/** Driving on the grass beside the road: the wheels sink in the mud and two helpers have to push. */
+export const MUD = {
+  /** seconds of driving off the road before the truck is stuck */
+  stuckAfter: 3,
+  /** top speed while the helpers push it back to the road */
+  pushKmh: 7,
+  /** helpers' walking speed, m/s */
+  walkSpeed: 3.2,
+  /** stop within this many metres of the helpers (and below pickupKmh) to take them back on */
+  pickupRange: 10,
+  pickupKmh: 3,
+  /** drive this far from the helpers and they are left behind: game over */
+  forgetRange: 70,
+  /** after leaving the mud, the tyres print mud on the road for this many seconds of driving */
+  roadTrailSeconds: 2,
+  /** a pair of tyre prints every this many metres */
+  stainSpacing: 0.9,
+  /** decals kept in the world (oldest are reused) */
+  maxStains: 360,
 } as const;

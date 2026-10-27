@@ -46,6 +46,8 @@ interface Vehicle {
   serve: number;
   /** queued in a jam: kept alive (even far ahead) until it has passed this s */
   pinUntil: number;
+  /** s of the flagman / light whose line this vehicle last saw open on its approach */
+  greenS: number;
 }
 
 const MIX: Record<ZoneKind, [TrafficKind, number][]> = {
@@ -115,7 +117,7 @@ export class Traffic {
           active: false, kind, mesh: g, s: 0, d: 0, targetD: 0, speed: 0, cruise: 0, dir: 1,
           len: dims.len, wid: dims.wid, heavy: kind === 'bus' || kind === 'truck',
           overtaker: false, overtakeState: 0, stalled: 0, hitCooldown: 0, hop: 0, yieldTimer: 0, homeD: 0, honks: 0, honkTimer: 0,
-          servedS: -Infinity, serve: 0, pinUntil: -Infinity,
+          servedS: -Infinity, serve: 0, pinUntil: -Infinity, greenS: -Infinity,
           art: art.group, rear: art.rear, sides: art.sides,
         });
       }
@@ -330,41 +332,49 @@ export class Traffic {
     v.servedS = -Infinity;
     v.serve = 0;
     v.pinUntil = -Infinity;
+    v.greenS = -Infinity;
     v.mesh.visible = true;
     this.paint(v);
     v.mesh.rotation.set(0, dir === 1 ? 0 : Math.PI, 0);
   }
 
   /**
-   * A jam: `count` vehicles waiting nose to tail behind the stop line at lineS, in lane d (our direction).
+   * A jam: `count` vehicles waiting nose to tail behind the stop line at lineS, in lane d, facing `dir`.
    * They drive on to `homeD` once past. Returns how many were placed.
    */
-  spawnQueue(lineS: number, d: number, homeD: number, count: number): number {
+  spawnQueue(lineS: number, d: number, homeD: number, count: number, dir: 1 | -1 = 1): number {
     const kinds: TrafficKind[] = ['truck', 'car', 'bus', 'cng', 'car', 'truck', 'cng', 'car'];
     const first = Math.floor(Math.random() * kinds.length);
-    let front = lineS - 0.3;
+    // front bumper of the next vehicle; the queue grows away from the line, against `dir`
+    let front = lineS - 0.3 * dir;
     let placed = 0;
     for (let i = 0; i < count; i++) {
       const want = kinds[(first + i) % kinds.length];
       const v = this.pool.find((p) => !p.active && p.kind === want) ?? this.pool.find((p) => !p.active && p.kind !== 'rickshaw');
       if (!v) break;
-      const s = front - v.len / 2;
+      const s = front - (dir * v.len) / 2;
       // somebody is already standing there: queue starts behind them
-      const there = this.pool.find((o) => o.active && o.dir === 1 && Math.abs(o.d - d) < 2.5 && Math.abs(o.s - s) < (o.len + v.len) / 2 + 1);
+      const there = this.pool.find((o) => o.active && o.dir === dir && Math.abs(o.d - d) < 2.5 && Math.abs(o.s - s) < (o.len + v.len) / 2 + 1);
       if (there) {
-        front = there.s - there.len / 2 - 2.4;
+        front = there.s - dir * (there.len / 2 + 2.4);
         i--;
-        if (front < lineS - 120) break;
+        if ((lineS - front) * dir > 120) break;
         continue;
       }
-      this.activate(v, s, d, 1);
+      this.activate(v, s, d, dir);
       v.speed = 0;
       v.homeD = homeD;
-      v.pinUntil = lineS + 40;
-      front -= v.len + 2.2 + Math.random() * 0.8;
+      // our way: kept until past the line; oncoming: kept until it has passed us (despawnBehind)
+      v.pinUntil = dir === 1 ? lineS + 40 : Infinity;
+      front -= dir * (v.len + 2.2 + Math.random() * 0.8);
       placed++;
     }
     return placed;
+  }
+
+  /** Is any vehicle going `dir` overlapping [fromS, toS]? */
+  anyBetween(fromS: number, toS: number, dir: 1 | -1): boolean {
+    return this.pool.some((v) => v.active && v.dir === dir && v.s - v.len / 2 < toS && v.s + v.len / 2 > fromS);
   }
 
   /** Is a vehicle (our direction) occupying [fromS, toS] near lateral offset d? */
@@ -424,12 +434,17 @@ export class Traffic {
         for (const p of g.pieces) {
           if (!p.controlsTraffic) continue;
           const line = p.stopLine(v.dir);
-          if (line === null || v.servedS === p.s) continue;
+          if (line === null) {
+            if (Math.abs(p.s - front) < 150) v.greenS = p.s;
+            continue;
+          }
+          if (v.servedS === p.s) continue;
           const gap = (line - front) * v.dir;
           if (gap < -0.5 || gap > 45) continue;
           const service = p.serviceTime;
-          // a light that just changed, too close to stop: carry on through
-          if (!service && v.speed > 3 && gap < ((v.speed * v.speed) / 5) * WORLD.speedScale) continue;
+          // it changed to red just as we got there, too close to stop: carry on through
+          // (arriving at a line that was already red, everyone stops)
+          if (!service && v.greenS === p.s && v.speed > 3 && gap < v.speed * 1.2) continue;
           target = Math.min(target, Math.max(0, gap - 0.3) * 0.35);
           if (stopAt === null || gap < (stopAt - front) * v.dir) stopAt = line;
           if (service && gap < 1.2 && v.speed < 0.5 && (v.serve += dt) >= service) {

@@ -190,7 +190,26 @@ the same orientation (facing −Z, origin at ground centre).
 - **After deploying,** check the preview with Facebook's Sharing Debugger
   (developers.facebook.com/tools/debug), which also refreshes its cache.
 
+## Leaderboard
+
+Players enter a name before their first run. Each finished run is sent to a small API worker
+(`worker/index.ts`, only handles `/api/*`) that stores it in a Cloudflare D1 database (`migrations/`).
+Points (`src/game/Score.ts`, shared by the game and the worker): no delivery or no profit = 0;
+otherwise 1 point per ৳100 profit, × a speed factor of 0.5–2 (highway driven at 60 km/h average = ×1).
+The server recomputes points itself and rejects impossible runs, but a determined cheater can still
+forge requests: scores come from the browser.
+
+**Deploy:** pushing to `main` deploys through Cloudflare Workers Builds (`npm run build`, then
+`npx wrangler deploy`), site and API together. The D1 database `chanda-truck` already exists (its id is in
+`wrangler.jsonc`). After adding a file to `migrations/`, apply it with `npx wrangler login` once and then
+`npm run db:migrate`.
+
+**Local dev with the API:** `npm run dev:api` (worker + local D1 on :8787, serves the last `npm run build`)
+alongside `npm run dev`; Vite proxies `/api` to it. Without it the game still runs, just without a leaderboard.
+
 ## Deploy to Cloudflare Pages
+
+The leaderboard needs the Worker deploy above; a plain Pages upload serves the game only.
 
 **Dashboard (Git integration):** create a Pages project from your repo with
 

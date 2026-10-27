@@ -15,6 +15,8 @@ type Phase = 'hold' | 'ours' | 'clearA' | 'theirs' | 'clearB';
 
 /** traffic going our way waits this far before the works */
 const STOP_BACK = 12;
+/** oncoming traffic waits this far past the end of the works (the cone taper back to our side is 35 m) */
+const FAR_BACK = 50;
 
 function excavatorGeometry(): THREE.BufferGeometry {
   return cached('works:excavator', () =>
@@ -127,7 +129,7 @@ export class Roadworks extends SetPiece<RoadworksEvent> {
     }
 
     // Flagmen: one at our stop line, one at the far end for the oncoming side
-    for (const [s, d, rot] of [[S - STOP_BACK, -lane - 2.4, Math.PI + 0.4], [S + L + 8, hw + 1.6, 0.4]] as const) {
+    for (const [s, d, rot] of [[S - STOP_BACK, -lane - 2.4, Math.PI + 0.4], [S + L + FAR_BACK - 2, hw + 1.6, 0.4]] as const) {
       const f = makeWaver('farmer', 75, 'stick');
       f.add(new THREE.Mesh(helmet, mat));
       const flagMat = new THREE.MeshBasicMaterial({ color: 0xd62828, side: THREE.DoubleSide });
@@ -156,7 +158,12 @@ export class Roadworks extends SetPiece<RoadworksEvent> {
 
   stopLine(dir: 1 | -1): number | null {
     if (dir === 1) return this.phase === 'ours' ? null : this.s - STOP_BACK;
-    return this.phase === 'theirs' || this.phase === 'hold' ? null : this.s + this.event.length + 10;
+    return this.phase === 'theirs' ? null : this.farLine;
+  }
+
+  /** where oncoming traffic waits: past the cone taper, so traffic leaving the works is back on its own side */
+  private get farLine(): number {
+    return this.s + this.event.length + FAR_BACK;
   }
 
   laneAt(s: number, dir: 1 | -1): number | null {
@@ -169,6 +176,17 @@ export class Roadworks extends SetPiece<RoadworksEvent> {
       return null;
     }
     return s > S - 15 && s < S + L + 110 ? lane : null;
+  }
+
+  /** During an all-red gap the flagman waits until the side that just had green has left the one-lane stretch. */
+  private stillInside(): boolean {
+    const from = this.s - STOP_BACK;
+    const to = this.farLine;
+    const tr = this.game.truck;
+    // (the truck only once it is past the barricade: stopping just over the line must not stall the flagman)
+    if (this.phase === 'clearA') return this.game.traffic.anyBetween(from, to, 1) || (tr.frontS > this.s + 2 && tr.rearS < to);
+    if (this.phase === 'clearB') return this.game.traffic.anyBetween(from, to, -1);
+    return false;
   }
 
   update(dt: number): void {
@@ -184,19 +202,21 @@ export class Roadworks extends SetPiece<RoadworksEvent> {
       const n = ROADWORKS.vehiclesMin + Math.floor(Math.random() * (ROADWORKS.vehiclesMax - ROADWORKS.vehiclesMin + 1));
       const lane = g.track.laneD(S, false);
       g.traffic.spawnQueue(S - STOP_BACK, -lane, -lane, n);
+      // the other side waits at the far flagman too, and comes through when he waves green
+      g.traffic.spawnQueue(this.farLine, lane, lane, ROADWORKS.oncomingMin + Math.floor(Math.random() * (ROADWORKS.oncomingMax - ROADWORKS.oncomingMin + 1)), -1);
     }
     if (highway && !this.warned && front > S - 400 && front < S) {
       this.warned = true;
       g.hud.warn('{cement} সামনে রাস্তার কাজ — এক লেনে চলাচল, পতাকা দেখে চলুন', 'info', 3.5);
     }
 
-    // The flagman's cycle starts once we're close (until then he holds our side)
+    // The flagman's cycle starts once we're close (until then both sides wait)
     if (this.phase === 'hold') {
       if (front > S - ROADWORKS.cycleFrom) {
         this.phase = 'theirs';
         this.timer = 6;
       }
-    } else if ((this.timer -= dt) <= 0) {
+    } else if ((this.timer -= dt) <= 0 && !this.stillInside()) {
       const next: Record<Exclude<Phase, 'hold'>, [Phase, number]> = {
         ours: ['clearA', ROADWORKS.clearSeconds],
         clearA: ['theirs', ROADWORKS.redSeconds],
@@ -218,7 +238,7 @@ export class Roadworks extends SetPiece<RoadworksEvent> {
     this.prevFront = front;
 
     // Flagmen wave the green flag, hold the red one out; workers dig
-    const theirs = this.phase === 'theirs' || this.phase === 'hold';
+    const theirs = this.phase === 'theirs';
     this.flagmen.forEach((f, i) => {
       const go = i === 0 ? ours : theirs;
       this.flagMats[i].color.setHex(go ? 0x2d9d4f : 0xd62828);
