@@ -192,8 +192,11 @@ the same orientation (facing −Z, origin at ground centre).
 
 ## Leaderboard
 
-Players enter a name before their first run. Each finished run is sent to a small API worker
-(`worker/index.ts`, only handles `/api/*`) that stores it in a Cloudflare D1 database (`migrations/`).
+Players enter a name before their first run. Each player's running totals are kept in their browser.
+The board (top 100) is downloaded at most once an hour per device; a run is sent to the API worker
+(`worker/index.ts`, only handles `/api/*`) only when it would get onto that board. The worker keeps just
+those 100 rows in a Cloudflare D1 database (`migrations/`), drops whoever falls off, and returns the new
+board with the answer. Rankings are therefore up to an hour old.
 Points (`src/game/Score.ts`, shared by the game and the worker): no delivery or no profit = 0;
 otherwise 1 point per ৳100 profit, × a speed factor of 0.5–2 (highway driven at 60 km/h average = ×1).
 The server recomputes points itself and rejects impossible runs, but a determined cheater can still

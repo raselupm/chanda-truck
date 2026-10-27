@@ -1,5 +1,5 @@
 // Cloudflare Worker: the leaderboard API under /api/*. Every other path is served from dist/ (static assets).
-// Data lives in the D1 database bound as DB (see migrations/ and wrangler.jsonc).
+// Data lives in the D1 database bound as DB (see migrations/ and wrangler.jsonc): just the top 100 players.
 
 import { START_POINTS } from '../src/config/route';
 import { computeScore, maxProfit, minDriveTime } from '../src/game/Score';
@@ -26,7 +26,7 @@ interface Ctx {
   waitUntil(p: Promise<unknown>): void;
 }
 
-interface PlayerRow {
+interface LeaderRow {
   id: string;
   name: string;
   total_points: number;
@@ -34,14 +34,28 @@ interface PlayerRow {
   runs: number;
   deliveries: number;
   total_profit: number;
-  created_at: number;
   best_route: string | null;
+  created_at: number;
+  last_run_id: string | null;
+  last_run_at: number;
 }
 
-const TOP_N = 20;
+/** A player's running totals (the browser keeps them; the board only holds the top players). */
+interface Totals {
+  total: number;
+  best: number;
+  runs: number;
+  deliveries: number;
+  profit: number;
+  route: string | null;
+}
+
+const TOP_N = 100;
 /** a run can't finish faster than this, so faster submits from one player are rejected */
 const MIN_SECONDS_BETWEEN_RUNS = 20;
 const MAX_PROFIT = maxProfit();
+/** most points one run can earn: the best possible profit, driven at the fastest bonus */
+const MAX_RUN_POINTS = computeScore({ arrived: true, profit: MAX_PROFIT, driveTime: 1, distance: 1e9 }).points;
 const DISTANCE_RANGE = [5_000, 60_000] as const;
 const ID_RE = /^[a-zA-Z0-9-]{16,64}$/;
 const OUTCOMES = ['arrived', 'crash', 'toll', 'helper'];
@@ -70,69 +84,55 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 /** Leaderboard order: points, then best run, deliveries, profit; whoever got there first wins a full tie. */
-const ORDER = 'p.total_points DESC, p.best_points DESC, p.deliveries DESC, p.total_profit DESC, p.created_at ASC';
+const ORDER = 'total_points DESC, best_points DESC, deliveries DESC, total_profit DESC, created_at ASC';
 
-/** Same as migrations/0002 — made here too, since deploys don't run migrations. */
-const RANK_INDEX = `CREATE INDEX IF NOT EXISTS players_rank
-  ON players (total_points DESC, best_points DESC, deliveries DESC, total_profit DESC, created_at) WHERE runs > 0`;
-let indexReady = false;
-
-async function ensureIndex(db: D1Database): Promise<void> {
-  if (indexReady) return;
-  await db.prepare(RANK_INDEX).run();
-  indexReady = true;
+/** Totals the browser claims for a player not on the board: must be ones real runs could add up to. */
+function claimedTotals(raw: unknown): Totals | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Record<string, unknown>;
+  const [total, best, runs, deliveries, profit] = [t.total, t.best, t.runs, t.deliveries, t.profit].map(Number);
+  if (![total, best, runs, deliveries].every((n) => Number.isInteger(n) && n >= 0)) return null;
+  if (!Number.isFinite(profit) || deliveries > runs || best > total || best > MAX_RUN_POINTS) return null;
+  if (total > deliveries * MAX_RUN_POINTS || profit > deliveries * MAX_PROFIT) return null;
+  const route = typeof t.route === 'string' && START_POINTS.some((p) => p.id === t.route) ? t.route : null;
+  return { total, best, runs, deliveries, profit: Math.round(profit), route };
 }
 
-/**
- * 1, 2, 3… — counts only the players ahead (an index range), so it stays cheap as players grow.
- * Players without points share the bottom and get no number (counting them would read the whole table).
- */
-async function rankOf(db: D1Database, p: PlayerRow): Promise<number | null> {
-  if (p.runs <= 0 || p.total_points <= 0) return null;
-  const row = await db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM players WHERE runs > 0 AND total_points >= ?1 AND (total_points > ?1 OR best_points > ?2
-         OR (best_points = ?2 AND (deliveries > ?3 OR (deliveries = ?3 AND (total_profit > ?4
-         OR (total_profit = ?4 AND created_at < ?5))))))`,
-    )
-    .bind(p.total_points, p.best_points, p.deliveries, p.total_profit, p.created_at)
-    .first<{ n: number }>();
-  return (row?.n ?? 0) + 1;
-}
-
-/** Player columns plus the route (start point id) of their best run. */
-const PLAYER_SELECT = `SELECT p.*, (SELECT r.start_id FROM runs r WHERE r.player_id = p.id
-  ORDER BY r.points DESC, r.profit DESC, r.created_at ASC LIMIT 1) AS best_route FROM players p`;
-
-const publicRow = (p: PlayerRow, rank: number | null) => ({
-  rank,
-  route: p.best_route,
-  name: p.name,
-  total: p.total_points,
-  best: p.best_points,
-  runs: p.runs,
-  deliveries: p.deliveries,
+const totalsOf = (r: LeaderRow): Totals => ({
+  total: r.total_points,
+  best: r.best_points,
+  runs: r.runs,
+  deliveries: r.deliveries,
+  profit: r.total_profit,
+  route: r.best_route,
 });
 
-/** POST /api/player {playerId, name} — create the player or rename them. */
-async function savePlayer(req: Request, db: D1Database): Promise<Response> {
+const publicRow = (r: LeaderRow, rank: number) => ({
+  rank,
+  route: r.best_route,
+  name: r.name,
+  total: r.total_points,
+  best: r.best_points,
+  runs: r.runs,
+  deliveries: r.deliveries,
+});
+
+/** POST /api/player {playerId, name}: rename a player (only matters while they're on the board). */
+async function savePlayer(req: Request, db: D1Database, ctx: Ctx): Promise<Response> {
   const body = await readJson(req);
   const id = body?.playerId;
   const name = cleanName(body?.name);
   if (typeof id !== 'string' || !ID_RE.test(id)) return bad('invalid playerId');
   if (!name) return bad('invalid name');
-  const now = Date.now();
-  await db
-    .prepare(
-      `INSERT INTO players (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)
-       ON CONFLICT (id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
-    )
-    .bind(id, name, now)
-    .run();
+  await db.prepare('UPDATE leaders SET name = ?2 WHERE id = ?1 AND name <> ?2').bind(id, name).run();
+  ctx.waitUntil(topCache().delete(TOP_CACHE_KEY));
   return json({ ok: true, name });
 }
 
-/** POST /api/runs — record a finished run; the server computes the points itself. */
+/**
+ * POST /api/runs: a finished run that scored points, with the player's totals before it. The server
+ * computes the points itself. Runs without points never reach here: they can't change the board.
+ */
 async function saveRun(req: Request, db: D1Database, ctx: Ctx): Promise<Response> {
   const b = await readJson(req);
   if (!b) return bad('invalid body');
@@ -154,45 +154,70 @@ async function saveRun(req: Request, db: D1Database, ctx: Ctx): Promise<Response
   const minTime = outcome === 'arrived' ? minDriveTime(distance) : 0;
   if (driveTime < minTime || driveTime > 24 * 3600) return bad('impossible drive time');
 
+  // The whole board is at most 100 rows: read it, work out the new standing here
+  const { results: board } = await db.prepare(`SELECT * FROM leaders ORDER BY ${ORDER}`).all<LeaderRow>();
+  const row = board.find((r) => r.id === playerId);
+  const { points } = computeScore({ arrived: outcome === 'arrived', profit, driveTime, distance });
   const now = Date.now();
-  const dup = await db.prepare('SELECT points FROM runs WHERE id = ?').bind(runId).first<{ points: number }>();
-  if (!dup) {
-    const last = await db
-      .prepare('SELECT MAX(created_at) AS t FROM runs WHERE player_id = ?')
-      .bind(playerId)
-      .first<{ t: number | null }>();
-    if (last?.t && now - last.t < MIN_SECONDS_BETWEEN_RUNS * 1000) return bad('too many runs', 429);
 
-    const arrived = outcome === 'arrived';
-    const { points } = computeScore({ arrived, profit, driveTime, distance });
-    await db.batch([
-      db
-        .prepare(
-          `INSERT INTO players (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)
-           ON CONFLICT (id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
-        )
-        .bind(playerId, name, now),
-      db
-        .prepare(
-          `INSERT INTO runs (id, player_id, start_id, outcome, profit, drive_time, distance, points, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(runId, playerId, startId, outcome, Math.round(profit), driveTime, Math.round(distance), points, now),
-      db
-        .prepare(
-          `UPDATE players SET total_points = total_points + ?1, best_points = MAX(best_points, ?1), runs = runs + 1,
-             deliveries = deliveries + ?2, total_profit = total_profit + ?3 WHERE id = ?4`,
-        )
-        .bind(points, arrived ? 1 : 0, Math.round(profit), playerId),
-    ]);
-    // new points can change the top list: let the next visitor rebuild it
-    if (points > 0) ctx.waitUntil(topCache().delete(TOP_CACHE_KEY));
-  }
+  // On the board, the server's totals count; off it, the browser's (checked for plausibility)
+  const before = row ? totalsOf(row) : claimedTotals(b.before);
+  if (!before) return bad('invalid totals');
+  if (row?.last_run_id === runId) return json({ points, me: { ...totalsOf(row), rank: board.indexOf(row) + 1 }, top: listed(board, playerId) });
+  if (row && now - row.last_run_at < MIN_SECONDS_BETWEEN_RUNS * 1000) return bad('too many runs', 429);
 
-  const me = await db.prepare(`${PLAYER_SELECT} WHERE p.id = ?`).bind(playerId).first<PlayerRow>();
-  if (!me) return bad('player missing', 500);
-  const points = dup?.points ?? (await db.prepare('SELECT points FROM runs WHERE id = ?').bind(runId).first<{ points: number }>())?.points ?? 0;
-  return json({ points, me: publicRow(me, await rankOf(db, me)) });
+  const after: Totals = {
+    total: before.total + points,
+    best: Math.max(before.best, points),
+    runs: before.runs + 1,
+    deliveries: before.deliveries + (outcome === 'arrived' ? 1 : 0),
+    profit: before.profit + Math.round(profit),
+    route: points > before.best || !before.route ? startId : before.route,
+  };
+  const me: LeaderRow = {
+    id: playerId,
+    name,
+    total_points: after.total,
+    best_points: after.best,
+    runs: after.runs,
+    deliveries: after.deliveries,
+    total_profit: after.profit,
+    best_route: after.route,
+    created_at: row?.created_at ?? now,
+    last_run_id: runId,
+    last_run_at: now,
+  };
+  const others = board.filter((r) => r !== row);
+  const ranked = [...others, me].sort(compare);
+  const rank = ranked.indexOf(me) + 1;
+  if (points <= 0 || rank > TOP_N) return json({ points, me: { ...after, rank: null }, top: listed(board, playerId) });
+
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO leaders (id, name, total_points, best_points, runs, deliveries, total_profit, best_route, created_at, last_run_id, last_run_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+         ON CONFLICT (id) DO UPDATE SET name = ?2, total_points = ?3, best_points = ?4, runs = ?5, deliveries = ?6,
+           total_profit = ?7, best_route = ?8, last_run_id = ?10, last_run_at = ?11`,
+      )
+      .bind(me.id, me.name, me.total_points, me.best_points, me.runs, me.deliveries, me.total_profit, me.best_route, me.created_at, runId, now),
+    // whoever fell off the bottom is gone
+    db.prepare(`DELETE FROM leaders WHERE id NOT IN (SELECT id FROM leaders ORDER BY ${ORDER} LIMIT ?)`).bind(TOP_N),
+  ]);
+  ctx.waitUntil(topCache().delete(TOP_CACHE_KEY));
+  // the new board goes back with the answer, so the browser needn't download it again
+  return json({ points, me: { ...after, rank }, top: listed(ranked.slice(0, TOP_N), playerId) });
+}
+
+/** Same order as ORDER, for rows in memory. */
+function compare(a: LeaderRow, b: LeaderRow): number {
+  return (
+    b.total_points - a.total_points ||
+    b.best_points - a.best_points ||
+    b.deliveries - a.deliveries ||
+    b.total_profit - a.total_profit ||
+    a.created_at - b.created_at
+  );
 }
 
 /** The top list is the same for everybody: kept in Cloudflare's edge cache for a minute. */
@@ -200,29 +225,21 @@ const TOP_CACHE_KEY = 'https://leaderboard.internal/top';
 const TOP_CACHE_SECONDS = 60;
 const topCache = () => (caches as unknown as { default: Cache }).default;
 
-async function topPlayers(db: D1Database, ctx: Ctx): Promise<PlayerRow[]> {
+async function topPlayers(db: D1Database, ctx: Ctx): Promise<LeaderRow[]> {
   const hit = await topCache().match(TOP_CACHE_KEY);
   if (hit) return hit.json();
-  const { results } = await db.prepare(`${PLAYER_SELECT} WHERE p.runs > 0 ORDER BY ${ORDER} LIMIT ?`).bind(TOP_N).all<PlayerRow>();
+  const { results } = await db.prepare(`SELECT * FROM leaders ORDER BY ${ORDER} LIMIT ?`).bind(TOP_N).all<LeaderRow>();
   const res = new Response(JSON.stringify(results), { headers: { 'Cache-Control': `max-age=${TOP_CACHE_SECONDS}` } });
   ctx.waitUntil(topCache().put(TOP_CACHE_KEY, res));
   return results;
 }
 
-/** GET /api/leaderboard?player=<id> — the top players, plus the asking player's own row. */
-async function leaderboard(url: URL, db: D1Database, ctx: Ctx): Promise<Response> {
-  const results = await topPlayers(db, ctx);
-  const playerId = url.searchParams.get('player');
-  const top = results.map((p, i) => ({ ...publicRow(p, i + 1), mine: p.id === playerId }));
+/** The board as players see it (ids stay private), the asking player's row marked. */
+const listed = (rows: LeaderRow[], playerId: string | null) => rows.map((r, i) => ({ ...publicRow(r, i + 1), mine: r.id === playerId }));
 
-  let me = null;
-  if (playerId && ID_RE.test(playerId)) {
-    const row = await db.prepare(`${PLAYER_SELECT} WHERE p.id = ?`).bind(playerId).first<PlayerRow>();
-    // (in the top list already: its position is right there)
-    const inTop = top.findIndex((r) => r.mine);
-    if (row) me = publicRow(row, inTop >= 0 ? inTop + 1 : await rankOf(db, row));
-  }
-  return json({ top, me });
+/** GET /api/leaderboard?player=<id>: the top players. Browsers keep it for an hour (src/net/leaderboard.ts). */
+async function leaderboard(url: URL, db: D1Database, ctx: Ctx): Promise<Response> {
+  return json({ top: listed(await topPlayers(db, ctx), url.searchParams.get('player')) });
 }
 
 export default {
@@ -230,9 +247,8 @@ export default {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
-      await ensureIndex(env.DB);
       if (url.pathname === '/api/leaderboard' && req.method === 'GET') return await leaderboard(url, env.DB, ctx);
-      if (url.pathname === '/api/player' && req.method === 'POST') return await savePlayer(req, env.DB);
+      if (url.pathname === '/api/player' && req.method === 'POST') return await savePlayer(req, env.DB, ctx);
       if (url.pathname === '/api/runs' && req.method === 'POST') return await saveRun(req, env.DB, ctx);
       return bad('not found', 404);
     } catch (e) {
