@@ -284,7 +284,8 @@ export class RailCrossing extends SetPiece<RailEvent> {
 
     // Train
     if (this.train.visible) {
-      if (this.state === 'closed' || this.state === 'closing') this.trainX += this.trainDir * RAIL.trainSpeed * dt;
+      // keeps running after the gates open, until it is out of sight down the line
+      this.trainX += this.trainDir * RAIL.trainSpeed * dt;
       const roadX = g.track.centerX(S);
       this.train.position.set(roadX + this.trainX, g.track.elevation(S) + 0.45, -S);
       if (!this.hornPlayed && Math.abs(this.trainX) < 220 && near) {

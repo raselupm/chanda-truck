@@ -84,6 +84,12 @@ export class TruckController {
     if (over > 0) this.setS(this.s - over, this.d);
   }
 
+  /** Undo a reverse into something behind: rear no further back than rearS. */
+  clampRear(rearS: number): void {
+    const under = rearS - this.rearS;
+    if (under > 0) this.setS(this.s + under, this.d);
+  }
+
   /** Nudge sideways (collisions). */
   shiftLateral(dd: number): void {
     this.setS(this.s, this.d + dd);

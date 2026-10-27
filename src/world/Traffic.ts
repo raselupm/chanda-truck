@@ -50,6 +50,9 @@ interface Vehicle {
   greenS: number;
 }
 
+/** a vehicle this close sideways to the truck is in its lane (truck 2.5 m wide, cars ~2 m) */
+const TRUCK_LANE = 2.2;
+
 const MIX: Record<ZoneKind, [TrafficKind, number][]> = {
   village: [],
   rural: [['bus', 0.35], ['truck', 0.33], ['car', 0.2], ['cng', 0.12]],
@@ -398,10 +401,12 @@ export class Traffic {
 
     let lead: Vehicle | null = null;
     let stopAt: number | null = null;
+    let truckAhead = false;
     for (const v of this.pool) {
       if (!v.active) continue;
       lead = null;
       stopAt = null;
+      truckAhead = false;
       if (v.stalled > 0) {
         v.stalled -= dt;
         v.speed = damp(v.speed, 0, 3, dt);
@@ -419,7 +424,17 @@ export class Traffic {
             lead = o;
           }
         }
-        if (lead && leadGap < 40) target = Math.min(target, Math.max(0, lead.speed + (leadGap - 2.5) * 0.35));
+        // the player's truck is traffic too: slow down and queue behind it, never drive into it
+        if (v.dir === 1 && Math.abs(truck.d - v.d) < TRUCK_LANE) {
+          const gap = truck.rearS - (v.s + v.len / 2);
+          if (gap > -2 && gap < leadGap) {
+            leadGap = gap;
+            lead = null;
+            truckAhead = true;
+          }
+        }
+        const leadSpeed = truckAhead ? Math.max(0, truck.speed) : lead?.speed ?? 0;
+        if ((lead || truckAhead) && leadGap < 40) target = Math.min(target, Math.max(0, leadSpeed + (leadGap - 2.5) * 0.35));
         // nobody drives through a closed barrier / gate: queue up at the stop line
         const front = v.s + (v.dir * v.len) / 2;
         if (v.dir === 1) {
@@ -501,6 +516,11 @@ export class Traffic {
           v.s = lead.s - v.dir * ((lead.len + v.len) / 2 + 0.8);
           v.speed = Math.min(v.speed, lead.speed);
         }
+        // (only a car that is driving up; one the truck backed up to stays put, see collide)
+        if (truckAhead && v.speed > 0.05 && truck.rearS - (v.s + v.len / 2) < 0.8 && Math.abs(truck.d - v.d) < TRUCK_LANE) {
+          v.s = truck.rearS - v.len / 2 - 0.8;
+          v.speed = Math.min(v.speed, Math.max(0, truck.speed));
+        }
       }
       if (v.pinUntil > -Infinity && v.s > v.pinUntil) v.pinUntil = -Infinity;
       v.hitCooldown = Math.max(0, v.hitCooldown - dt);
@@ -541,6 +561,24 @@ export class Traffic {
       t.speed = Math.min(t.speed, v.speed);
       return;
     }
+    // Something behind us: whoever is moving into the other one stops. Nobody gets shoved.
+    if (ds < 0 && ovS < ovD) {
+      if (t.speed < 0) {
+        // reversing into it: the truck stops (a bump, not a crash)
+        t.speed = 0;
+        t.clampRear(v.s + v.len / 2 + 0.2);
+        if (v.hitCooldown <= 0) {
+          v.hitCooldown = 1.2;
+          g.cam.shake(0.3);
+          g.sound.crash(0.25);
+        }
+      } else if (v.dir === 1) {
+        // it caught up with us: it stops at our tailboard
+        v.s = t.rearS - v.len / 2 - 0.3;
+        v.speed = Math.min(v.speed, t.speed);
+      }
+      return;
+    }
     if (v.hitCooldown > 0) return;
 
     v.hitCooldown = 1.2;
@@ -559,21 +597,14 @@ export class Traffic {
         return;
       }
       if (ds > 0) {
-        // we hit it from behind (or head-on at low closing speed)
+        // we hit it from behind (or head-on at low closing speed): we stop, it isn't shoved forward
         g.cam.shake(clamp(closing / 60, 0.3, 1.6));
         g.sound.crash(clamp(closing / 80, 0.3, 1));
         t.speed = v.dir === 1 ? Math.max(0, v.speed * 0.6) : -1.5;
         t.clampFront(v.s - v.len / 2 - 0.2);
         g.damageCargo(v.dir === -1 ? pct.headOnLight : clamp(closing * pct.rearEndPerKmh, 0.3, pct.rearEndMax), 'সংঘর্ষে মাল নষ্ট', 'মহাসড়ক');
-        if (!v.heavy) this.knockAside(v, t.d);
-        else v.speed += 2;
+        if (v.dir === -1 && !v.heavy) this.knockAside(v, t.d);
         g.hud.toast('{crash} ধাক্কা! মাল পড়ে গেল');
-      } else {
-        // rear-ended by a faster vehicle
-        g.cam.shake(0.4);
-        g.sound.crash(0.3);
-        v.speed = Math.max(0, t.speed - 2);
-        t.speed += 1.5;
       }
     } else {
       // side swipe
