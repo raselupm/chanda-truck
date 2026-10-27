@@ -385,7 +385,8 @@
 .player-line:empty { display: none; }
 .lb-note { font-size: 13px; opacity: .8; margin-bottom: 6px; }
 .lb-empty { font-size: 14px; opacity: .75; padding: 8px 0; }
-.lb-table th:nth-child(2), .lb-table .lb-name { text-align: left; } 
+.lb-table th:nth-child(2), .lb-table th:nth-child(3), .lb-table .lb-name, .lb-table .lb-route { text-align: left; }
+.leaderboard { margin-bottom: 14px; }
 .lb-table .lb-name { max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-table tr.me td { background: rgba(242,160,61,.22); font-weight: 700; }
 .lb-table tr.lb-gap td { text-align: center; opacity: .5; padding: 0; }

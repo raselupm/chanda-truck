@@ -1,6 +1,7 @@
 // Name prompt and the global leaderboard table (menu + result report).
 
 import { fetchBoard, player, setPlayerName, type Board, type BoardRow } from '../net/leaderboard';
+import { START_POINTS } from '../config/route';
 import { formatBn } from '../utils/bnNumber';
 import { button, el, esc } from './dom';
 
@@ -71,13 +72,13 @@ export function renderBoard(box: HTMLElement, board: Board | null): void {
   const me = board.me;
   const row = (r: BoardRow, mine: boolean) =>
     `<tr class="${mine ? 'me' : ''}"><td class="num">${formatBn(r.rank)}</td><td class="lb-name">${esc(r.name)}</td>
-      <td class="num">${formatBn(r.total)}</td><td class="num">${formatBn(r.best)}</td><td class="num">${formatBn(r.deliveries)}/${formatBn(r.runs)}</td></tr>`;
+      <td class="lb-route">${esc(START_POINTS.find((p) => p.id === r.route)?.nameBn ?? '—')}</td><td class="num">${formatBn(r.total)}</td><td class="num">${formatBn(r.best)}</td><td class="num">${formatBn(r.deliveries)}/${formatBn(r.runs)}</td></tr>`;
   let rows = board.top.map((r) => row(r, r.mine)).join('');
   if (me && me.runs > 0 && !board.top.some((r) => r.mine)) {
-    rows += `<tr class="lb-gap"><td colspan="5">…</td></tr>${row(me, true)}`;
+    rows += `<tr class="lb-gap"><td colspan="6">…</td></tr>${row(me, true)}`;
   }
   box.innerHTML = `<div class="rp-table-wrap"><table class="rp-table lb-table">
-    <thead><tr><th>#</th><th>নাম</th><th>মোট পয়েন্ট</th><th>সেরা যাত্রা</th><th>ডেলিভারি</th></tr></thead>
+    <thead><tr><th>#</th><th>নাম</th><th>রুট</th><th>মোট পয়েন্ট</th><th>সেরা যাত্রা</th><th>ডেলিভারি</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 

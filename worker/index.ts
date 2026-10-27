@@ -31,6 +31,7 @@ interface PlayerRow {
   runs: number;
   deliveries: number;
   total_profit: number;
+  best_route: string | null;
 }
 
 const TOP_N = 20;
@@ -65,19 +66,24 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 /** Leaderboard order: points, then best run, deliveries, profit; whoever got there first wins a full tie. */
-const ORDER = 'total_points DESC, best_points DESC, deliveries DESC, total_profit DESC, created_at ASC';
+const ORDER = 'p.total_points DESC, p.best_points DESC, p.deliveries DESC, p.total_profit DESC, p.created_at ASC';
 
 /** 1, 2, 3… — every player gets their own position. */
 async function rankOf(db: D1Database, playerId: string): Promise<number> {
   const row = await db
-    .prepare(`SELECT pos FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY ${ORDER}) AS pos FROM players WHERE runs > 0) WHERE id = ?`)
+    .prepare(`SELECT pos FROM (SELECT p.id, ROW_NUMBER() OVER (ORDER BY ${ORDER}) AS pos FROM players p WHERE p.runs > 0) WHERE id = ?`)
     .bind(playerId)
     .first<{ pos: number }>();
   return row?.pos ?? 0;
 }
 
+/** Player columns plus the route (start point id) of their best run. */
+const PLAYER_SELECT = `SELECT p.*, (SELECT r.start_id FROM runs r WHERE r.player_id = p.id
+  ORDER BY r.points DESC, r.profit DESC, r.created_at ASC LIMIT 1) AS best_route FROM players p`;
+
 const publicRow = (p: PlayerRow, rank: number) => ({
   rank,
+  route: p.best_route,
   name: p.name,
   total: p.total_points,
   best: p.best_points,
@@ -158,7 +164,7 @@ async function saveRun(req: Request, db: D1Database): Promise<Response> {
     ]);
   }
 
-  const me = await db.prepare('SELECT * FROM players WHERE id = ?').bind(playerId).first<PlayerRow>();
+  const me = await db.prepare(`${PLAYER_SELECT} WHERE p.id = ?`).bind(playerId).first<PlayerRow>();
   if (!me) return bad('player missing', 500);
   const points = dup?.points ?? (await db.prepare('SELECT points FROM runs WHERE id = ?').bind(runId).first<{ points: number }>())?.points ?? 0;
   return json({ points, me: publicRow(me, await rankOf(db, playerId)) });
@@ -167,7 +173,7 @@ async function saveRun(req: Request, db: D1Database): Promise<Response> {
 /** GET /api/leaderboard?player=<id> — the top players, plus the asking player's own row. */
 async function leaderboard(url: URL, db: D1Database): Promise<Response> {
   const { results } = await db
-    .prepare(`SELECT * FROM players WHERE runs > 0 ORDER BY ${ORDER} LIMIT ?`)
+    .prepare(`${PLAYER_SELECT} WHERE p.runs > 0 ORDER BY ${ORDER} LIMIT ?`)
     .bind(TOP_N)
     .all<PlayerRow>();
   const playerId = url.searchParams.get('player');
@@ -175,7 +181,7 @@ async function leaderboard(url: URL, db: D1Database): Promise<Response> {
 
   let me = null;
   if (playerId && ID_RE.test(playerId)) {
-    const row = await db.prepare('SELECT * FROM players WHERE id = ?').bind(playerId).first<PlayerRow>();
+    const row = await db.prepare(`${PLAYER_SELECT} WHERE p.id = ?`).bind(playerId).first<PlayerRow>();
     if (row) me = publicRow(row, await rankOf(db, row.id));
   }
   return json({ top, me });

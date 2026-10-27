@@ -7,6 +7,8 @@ const TIMEOUT_MS = 8000;
 
 export interface BoardRow {
   rank: number;
+  /** start point id of the player's best run */
+  route: string | null;
   name: string;
   total: number;
   best: number;
