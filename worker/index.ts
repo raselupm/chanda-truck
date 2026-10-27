@@ -2,7 +2,7 @@
 // Data lives in the D1 database bound as DB (see migrations/ and wrangler.jsonc).
 
 import { START_POINTS } from '../src/config/route';
-import { SCORE, computeScore, maxProfit } from '../src/game/Score';
+import { computeScore, maxProfit, minDriveTime } from '../src/game/Score';
 
 // Minimal D1 / assets typings, so the worker needs no extra type packages.
 interface D1Result<T> {
@@ -64,9 +64,16 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
   }
 }
 
-async function rankOf(db: D1Database, totalPoints: number): Promise<number> {
-  const row = await db.prepare('SELECT COUNT(*) AS n FROM players WHERE total_points > ?').bind(totalPoints).first<{ n: number }>();
-  return (row?.n ?? 0) + 1;
+/** Leaderboard order: points, then best run, deliveries, profit; whoever got there first wins a full tie. */
+const ORDER = 'total_points DESC, best_points DESC, deliveries DESC, total_profit DESC, created_at ASC';
+
+/** 1, 2, 3… — every player gets their own position. */
+async function rankOf(db: D1Database, playerId: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT pos FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY ${ORDER}) AS pos FROM players WHERE runs > 0) WHERE id = ?`)
+    .bind(playerId)
+    .first<{ pos: number }>();
+  return row?.pos ?? 0;
 }
 
 const publicRow = (p: PlayerRow, rank: number) => ({
@@ -115,7 +122,7 @@ async function saveRun(req: Request, db: D1Database): Promise<Response> {
   if (profit > MAX_PROFIT || profit < -1_000_000) return bad('impossible profit');
   if (distance < DISTANCE_RANGE[0] || distance > DISTANCE_RANGE[1]) return bad('impossible distance');
   // A crash can end a run early, but an arrival covered the whole highway
-  const minTime = outcome === 'arrived' ? distance / (SCORE.maxAvgKmh / 3.6) : 0;
+  const minTime = outcome === 'arrived' ? minDriveTime(distance) : 0;
   if (driveTime < minTime || driveTime > 24 * 3600) return bad('impossible drive time');
 
   const now = Date.now();
@@ -154,27 +161,22 @@ async function saveRun(req: Request, db: D1Database): Promise<Response> {
   const me = await db.prepare('SELECT * FROM players WHERE id = ?').bind(playerId).first<PlayerRow>();
   if (!me) return bad('player missing', 500);
   const points = dup?.points ?? (await db.prepare('SELECT points FROM runs WHERE id = ?').bind(runId).first<{ points: number }>())?.points ?? 0;
-  return json({ points, me: publicRow(me, await rankOf(db, me.total_points)) });
+  return json({ points, me: publicRow(me, await rankOf(db, playerId)) });
 }
 
 /** GET /api/leaderboard?player=<id> — the top players, plus the asking player's own row. */
 async function leaderboard(url: URL, db: D1Database): Promise<Response> {
   const { results } = await db
-    .prepare('SELECT * FROM players WHERE runs > 0 ORDER BY total_points DESC, updated_at ASC LIMIT ?')
+    .prepare(`SELECT * FROM players WHERE runs > 0 ORDER BY ${ORDER} LIMIT ?`)
     .bind(TOP_N)
     .all<PlayerRow>();
   const playerId = url.searchParams.get('player');
-  // Equal totals share a rank
-  const top: (ReturnType<typeof publicRow> & { mine: boolean })[] = [];
-  results.forEach((p, i) => {
-    const prev = top[i - 1];
-    top.push({ ...publicRow(p, prev && prev.total === p.total_points ? prev.rank : i + 1), mine: p.id === playerId });
-  });
+  const top = results.map((p, i) => ({ ...publicRow(p, i + 1), mine: p.id === playerId }));
 
   let me = null;
   if (playerId && ID_RE.test(playerId)) {
     const row = await db.prepare('SELECT * FROM players WHERE id = ?').bind(playerId).first<PlayerRow>();
-    if (row) me = publicRow(row, await rankOf(db, row.total_points));
+    if (row) me = publicRow(row, await rankOf(db, row.id));
   }
   return json({ top, me });
 }
