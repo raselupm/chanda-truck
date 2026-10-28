@@ -390,6 +390,7 @@
 .lb-table .lb-name { max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-table tr.me td { background: rgba(242,160,61,.22); font-weight: 700; }
 .lb-table tr.lb-gap td { text-align: center; opacity: .5; padding: 0; }
+.lb-more { text-align: center; margin-top: 8px; }
 .name-dialog { z-index: 60; }
 .nd-hint { margin: 6px 0 10px; opacity: .85; }
 .nd-input {

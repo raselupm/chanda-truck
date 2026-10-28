@@ -59,23 +59,35 @@ export class NameDialog {
   }
 }
 
-/** Renders the leaderboard into `box`; the player's own row is highlighted (and appended if outside the top). */
-export function renderBoard(box: HTMLElement, board: Board): void {
+/** Rows shown before "আরও দেখুন" reveals the rest of the board. */
+const FIRST_ROWS = 10;
+
+/**
+ * Renders the leaderboard into `box`: the first 10 rows, then a button that shows the rest. The player's own
+ * row is highlighted (and appended if it isn't among the rows shown).
+ */
+export function renderBoard(box: HTMLElement, board: Board, all = false): void {
   if (board.top.length === 0) {
     box.innerHTML = '<div class="lb-empty">এখনো কেউ পয়েন্ট পায়নি — প্রথম হোন!</div>';
     return;
   }
-  const me = board.me;
+  const shown = all ? board.top : board.top.slice(0, FIRST_ROWS);
+  const me = board.top.find((r) => r.mine) ?? board.me;
   const row = (r: BoardRow, mine: boolean) =>
     `<tr class="${mine ? 'me' : ''}"><td class="num">${r.rank ? formatBn(r.rank) : '—'}</td><td class="lb-name">${esc(r.name)}</td>
       <td class="lb-route">${esc(START_POINTS.find((p) => p.id === r.route)?.nameBn ?? '—')}</td><td class="num">${formatBn(r.total)}</td><td class="num">${formatBn(r.best)}</td><td class="num">${formatBn(r.deliveries)}/${formatBn(r.runs)}</td></tr>`;
-  let rows = board.top.map((r) => row(r, r.mine)).join('');
-  if (me && me.runs > 0 && !board.top.some((r) => r.mine)) {
+  let rows = shown.map((r) => row(r, r.mine)).join('');
+  if (me && me.runs > 0 && !shown.some((r) => r.mine)) {
     rows += `<tr class="lb-gap"><td colspan="6">…</td></tr>${row(me, true)}`;
   }
+  const more = board.top.length - shown.length;
   box.innerHTML = `<div class="rp-table-wrap"><table class="rp-table lb-table">
     <thead><tr><th>#</th><th>নাম</th><th>রুট</th><th>মোট পয়েন্ট</th><th>সেরা যাত্রা</th><th>ডেলিভারি</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
+  if (more > 0) {
+    const b = el('div', 'lb-more', '', box);
+    button(`আরও দেখুন (${formatBn(more)})`, 'btn btn-ghost small', () => renderBoard(box, board, true), b);
+  }
 }
 
 /**
