@@ -39,6 +39,7 @@
 
 /* ---------- HUD ---------- */
 .hud { position: absolute; inset: 0; pointer-events: none; }
+.hud.cockpit .speedo-svg { visibility: hidden; }
 .hud button, .hud .depart { pointer-events: auto; }
 
 .hud-stats {

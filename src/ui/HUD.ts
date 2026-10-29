@@ -183,7 +183,8 @@ export class HUD {
     this.lastPerKg = perKg;
     setText(this.chanda, formatTaka(g.ledger.extortionTotal()));
 
-    // Speedometer
+    // Speedometer (the dashboard shows it in driver's view)
+    this.root.classList.toggle('cockpit', g.cam.mode === 'cockpit');
     const kmh = Math.abs(t.kmh);
     this.needle.setAttribute('transform', `rotate(${90 - speedoAngle(kmh)} 100 100)`);
     setText(this.digital, formatBn(Math.round(kmh)));

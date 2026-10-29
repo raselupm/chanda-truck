@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { WORLD } from '../config/tuning';
 import { blobShadow, box, buildColored, cone, cyl, vertexColorMaterial, type Part } from '../utils/geometry';
 import { truckArtTexture } from '../utils/textures';
+import { EYE } from './Cockpit';
 
 const CRATE_COLS = 3;
 const CRATE_ROWS = 6;
@@ -14,6 +15,8 @@ export class Truck {
   readonly root = new THREE.Group();
   /** pitch/roll/bounce happen on this inner group */
   private body = new THREE.Group();
+  /** driver's eye; the cockpit camera rides on it */
+  readonly eye = new THREE.Object3D();
   private cab: THREE.Mesh;
   private wheels: THREE.Mesh[] = [];
   private frontWheels: THREE.Mesh[] = [];
@@ -24,6 +27,9 @@ export class Truck {
 
   constructor() {
     this.root.add(this.body);
+    this.eye.position.set(EYE.x, EYE.y, EYE.z);
+    this.eye.rotation.x = EYE.tilt;
+    this.body.add(this.eye);
     const mat = vertexColorMaterial();
 
     const chassis: Part[] = [

@@ -152,6 +152,11 @@ export const CAMERA = {
     fovMin: 82,
     fovMax: 94,
   },
+  /** Driver's-seat view: [min, max] FOV, widening a little with speed */
+  cockpit: {
+    fov: [62, 68],
+    portraitFov: [80, 86],
+  },
 } as const;
 
 export const SLOW_ZONES = {

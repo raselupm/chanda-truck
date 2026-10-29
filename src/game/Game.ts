@@ -18,6 +18,7 @@ import { TollDialog } from '../ui/TollDialog';
 import { TouchControls } from '../ui/TouchControls';
 import { formatKg, formatTaka, toBnDigits } from '../utils/bnNumber';
 import { CameraRig } from '../vehicle/CameraRig';
+import { Cockpit } from '../vehicle/Cockpit';
 import { Chasers } from '../vehicle/Chasers';
 import { MAX_CRATES, Truck } from '../vehicle/Truck';
 import { TruckController } from '../vehicle/TruckController';
@@ -72,6 +73,7 @@ export class Game {
   readonly truckModel = new Truck();
   readonly truck: TruckController;
   readonly cam: CameraRig;
+  private cockpit: Cockpit | null = null;
   readonly traffic: Traffic;
   readonly chase: Chasers;
   readonly pedestrians: Pedestrians;
@@ -117,7 +119,7 @@ export class Game {
     this.streamer = new RoadStreamer(this.track);
     this.scenery = new Scenery(this.track);
     this.truck = new TruckController(this.track);
-    this.cam = new CameraRig(camera);
+    this.cam = new CameraRig(camera, this.truckModel.eye);
     this.traffic = new Traffic(this);
     this.chase = new Chasers(this);
     this.pedestrians = new Pedestrians(this);
@@ -304,7 +306,16 @@ export class Game {
 
   toggleCamera(): void {
     this.cam.toggle();
-    this.truckModel.setCockpit(this.cam.mode === 'cockpit');
+    const inside = this.cam.mode === 'cockpit';
+    // built the first time someone climbs in
+    if (inside) this.cockpit ??= new Cockpit();
+    this.truckModel.setCockpit(inside);
+    this.cam.snap(this.truck);
+  }
+
+  /** Draw what goes over the 3D world (the cab interior in driver's view). */
+  renderOverlay(renderer: THREE.WebGLRenderer): void {
+    if (this.cam.mode === 'cockpit') this.cockpit?.render(renderer);
   }
 
   // ---------------------------------------------------------------- economy
@@ -563,9 +574,13 @@ export class Game {
       p.group.visible = t.s > a && t.s < b;
     }
     this.truckModel.update(dt, t.x, t.y, t.z, t.heading, t.pitch, t.speed, t.steer, t.yawRate, t.bump);
-    this.cam.update(dt, t, t.bump);
+    this.cam.update(dt, t);
     if (!this.state.paused) this.weather.update(dt);
     const look = this.weather.look;
+    if (this.cam.mode === 'cockpit' && this.cockpit) {
+      const throttle = this.state.paused || this.modal ? 0 : this.input.throttle;
+      this.cockpit.update(this.state.paused ? 0 : dt, this.cam.camera, { kmh: t.kmh, steer: t.steer, throttle, look, flash: this.weather.flash });
+    }
     this.env.apply(look, this.weather.flash);
     this.env.update(dt, this.cam.camera, this.truckModel.root.position, look.rain);
     this.truckModel.setHeadlights(look.headlights);

@@ -1,4 +1,4 @@
-// Third-person chase camera with lag, speed-based FOV and impact shake; optional cockpit view.
+// Third-person chase camera with lag, speed-based FOV and impact shake; optional driver's-seat cockpit view.
 
 import * as THREE from 'three';
 import { CAMERA, WORLD } from '../config/tuning';
@@ -14,8 +14,10 @@ export class CameraRig {
   private fwd = new THREE.Vector3();
   private smoothHeading = 0;
   private smoothLook = new THREE.Vector3();
+  private scale = new THREE.Vector3();
 
-  constructor(readonly camera: THREE.PerspectiveCamera) {}
+  /** @param eye the driver's-eye anchor on the truck model, used in cockpit view */
+  constructor(readonly camera: THREE.PerspectiveCamera, private eye: THREE.Object3D) {}
 
   shake(amount: number): void {
     this.shakeAmp = Math.max(this.shakeAmp, amount);
@@ -31,7 +33,7 @@ export class CameraRig {
     this.camera.position.copy(this.pos);
     this.smoothLook.copy(this.look);
     this.camera.lookAt(this.look);
-    this.camera.fov = this.cfg.fovMin;
+    this.camera.fov = this.fovRange[0];
     this.camera.updateProjectionMatrix();
   }
 
@@ -40,24 +42,22 @@ export class CameraRig {
     return this.camera.aspect < 1 ? { ...CAMERA, ...CAMERA.portrait } : CAMERA;
   }
 
+  private get fovRange(): readonly [number, number] {
+    if (this.mode === 'cockpit') return this.camera.aspect < 1 ? CAMERA.cockpit.portraitFov : CAMERA.cockpit.fov;
+    return [this.cfg.fovMin, this.cfg.fovMax];
+  }
+
   private compute(t: TruckController): void {
     const h = this.smoothHeading;
     const c = this.cfg;
     this.fwd.set(Math.sin(h), 0, -Math.cos(h));
-    if (this.mode === 'chase') {
-      this.pos.set(t.x, t.y, t.z).addScaledVector(this.fwd, -c.distance);
-      this.pos.y += c.height;
-      this.look.set(t.x, t.y + c.lookHeight, t.z).addScaledVector(this.fwd, c.lookAhead);
-    } else {
-      const f = new THREE.Vector3(Math.sin(t.heading), 0, -Math.cos(t.heading));
-      this.pos.set(t.x, t.y + 2.75, t.z).addScaledVector(f, -2.9);
-      this.look.copy(this.pos).addScaledVector(f, 30);
-      this.look.y += -1.2 + Math.tan(t.pitch) * 30;
-    }
+    this.pos.set(t.x, t.y, t.z).addScaledVector(this.fwd, -c.distance);
+    this.pos.y += c.height;
+    this.look.set(t.x, t.y + c.lookHeight, t.z).addScaledVector(this.fwd, c.lookAhead);
   }
 
-  update(dt: number, t: TruckController, bump: number): void {
-    this.smoothHeading = damp(this.smoothHeading, t.heading, this.mode === 'chase' ? 2.6 : 30, dt);
+  update(dt: number, t: TruckController): void {
+    this.smoothHeading = damp(this.smoothHeading, t.heading, 2.6, dt);
     this.compute(t);
     if (this.mode === 'chase') {
       // follow tighter when the world moves faster, so the lag distance stays the same
@@ -69,12 +69,14 @@ export class CameraRig {
       this.smoothLook.x = damp(this.smoothLook.x, this.look.x, 8, dt);
       this.smoothLook.y = damp(this.smoothLook.y, this.look.y, 5, dt);
       this.smoothLook.z = damp(this.smoothLook.z, this.look.z, 12, dt);
+      this.camera.lookAt(this.smoothLook);
     } else {
-      this.camera.position.copy(this.pos);
-      this.camera.position.y += bump;
+      // sit in the driver's seat: pitch, roll and bounce come with the truck body
+      this.eye.updateWorldMatrix(true, false);
+      this.eye.matrixWorld.decompose(this.camera.position, this.camera.quaternion, this.scale);
+      // keep the chase camera's state current so switching back doesn't swoop in from far away
       this.smoothLook.copy(this.look);
     }
-    this.camera.lookAt(this.smoothLook);
 
     if (this.shakeAmp > 0.001) {
       const a = this.shakeAmp;
@@ -85,8 +87,8 @@ export class CameraRig {
     }
 
     const kmh = Math.abs(t.kmh);
-    const c = this.cfg;
-    const fov = c.fovMin + (c.fovMax - c.fovMin) * clamp((kmh - 40) / 80, 0, 1);
+    const [fovMin, fovMax] = this.fovRange;
+    const fov = fovMin + (fovMax - fovMin) * clamp((kmh - 40) / 80, 0, 1);
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov = damp(this.camera.fov, fov, 2, dt);
       this.camera.updateProjectionMatrix();

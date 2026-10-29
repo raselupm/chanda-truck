@@ -63,6 +63,7 @@ async function boot(): Promise<void> {
     last = now;
     game.update(Math.min(rawDt, LOOP.maxDt));
     renderer.render(scene, camera);
+    game.renderOverlay(renderer);
     debug.update(rawDt);
   });
 }

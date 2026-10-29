@@ -44,6 +44,9 @@ html, body {
   padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 #ui-root > * { pointer-events: auto; }
+/* full-screen layers that only let their own buttons take taps; without this the touch-controls
+   layer (added after the HUD) swallows taps on the HUD's top buttons on phones */
+#ui-root > .hud, #ui-root > .touch { pointer-events: none; }
 
 .debug-overlay {
   position: absolute;
