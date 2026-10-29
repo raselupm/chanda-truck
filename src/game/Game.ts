@@ -163,6 +163,7 @@ export class Game {
     // A pretty idle scene behind the menu
     this.buildRun();
     this.truck.reset(30, -1.6);
+    this.truckModel.shuffleRearAd();
     this.cam.snap(this.truck);
   }
 

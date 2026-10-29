@@ -162,9 +162,9 @@ export class Traffic {
   /** Give a freshly spawned vehicle random writing. */
   private paint(v: Vehicle): void {
     const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
-    // half the trucks carry an ad from the ads/ folder on the tailboard (same shape as the panel)
+    // trucks carry a random ad from the ads/ folder on the tailboard (same shape as the panel)
     const ads = adMaterials();
-    if (v.rear) v.rear.material = v.kind === 'car' ? pick(stickerMaterials()) : v.kind === 'truck' && ads.length && Math.random() < 0.5 ? pick(ads) : pick(rearMaterials());
+    if (v.rear) v.rear.material = v.kind === 'car' ? pick(stickerMaterials()) : v.kind === 'truck' && ads.length ? pick(ads) : pick(rearMaterials());
     const name = pick(sideMaterials());
     for (const m of v.sides) m.material = name;
   }

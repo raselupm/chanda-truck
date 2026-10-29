@@ -185,10 +185,10 @@ export class Truck {
 
   private cabExtras: THREE.Object3D[];
 
-  /** Half the runs the tailboard carries a random ad instead of the truck art. */
+  /** Every run the tailboard carries a random ad (truck art only when the ads/ folder is empty). */
   shuffleRearAd(): void {
     const ads = adMaterials();
-    this.back.material = ads.length && Math.random() < 0.5 ? ads[Math.floor(Math.random() * ads.length)] : this.backArt;
+    this.back.material = ads.length ? ads[Math.floor(Math.random() * ads.length)] : this.backArt;
   }
 
   setCrates(colors: number[]): void {
