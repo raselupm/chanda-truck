@@ -1,5 +1,5 @@
 // Big roadside billboards showing real ads: every image in the project's ads/ folder (drop a file in, it
-// appears in the game). Each board picks an ad at random every run. They stand at the start field, along
+// appears in the game, here and on the small roadside billboards in Scenery). Each board picks an ad at random every run. They stand at the start field, along
 // the driver's side of the highway, and where the truck has to wait: toll plazas and rail crossings.
 
 import * as THREE from 'three';
@@ -8,7 +8,7 @@ import { ROAD } from '../config/tuning';
 import { box, buildColored, cached, vertexColorMaterial } from '../utils/geometry';
 import type { Track } from './Track';
 
-const AD_URLS: string[] = Object.values(
+export const AD_URLS: string[] = Object.values(
   import.meta.glob('../../ads/*.{png,jpg,jpeg,webp,PNG,JPG,JPEG,WEBP}', { eager: true, query: '?url', import: 'default' }) as Record<string, string>,
 );
 
@@ -16,9 +16,6 @@ const AD_URLS: string[] = Object.values(
 const PANEL_W = 12;
 const PANEL_H = 6.5;
 const PANEL_Y = 7.6;
-/** texture size; ads are scaled to fit inside without cropping */
-const TEX_W = 1024;
-const TEX_H = Math.round((TEX_W * PANEL_H) / PANEL_W);
 /** one roadside board every this many metres along the highway */
 const ROADSIDE_EVERY = 900;
 
@@ -37,21 +34,21 @@ function frameGeometry(): THREE.BufferGeometry {
   );
 }
 
-/** Loads an ad and letterboxes it onto a panel-shaped canvas (white margins, never cropped). */
-function loadAd(url: string, mat: THREE.MeshLambertMaterial): void {
+/** Loads an ad and letterboxes it onto a texW × texH canvas (white margins, never cropped). */
+function loadAd(url: string, mat: THREE.MeshLambertMaterial, texW: number, texH: number): void {
   const img = new Image();
   img.onload = () => {
     const c = document.createElement('canvas');
-    c.width = TEX_W;
-    c.height = TEX_H;
+    c.width = texW;
+    c.height = texH;
     const ctx = c.getContext('2d')!;
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, TEX_W, TEX_H);
-    const k = Math.min(TEX_W / img.width, TEX_H / img.height);
+    ctx.fillRect(0, 0, texW, texH);
+    const k = Math.min(texW / img.width, texH / img.height);
     const w = img.width * k;
     const h = img.height * k;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, (TEX_W - w) / 2, (TEX_H - h) / 2, w, h);
+    ctx.drawImage(img, (texW - w) / 2, (texH - h) / 2, w, h);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
@@ -60,6 +57,19 @@ function loadAd(url: string, mat: THREE.MeshLambertMaterial): void {
     mat.needsUpdate = true;
   };
   img.src = url;
+}
+
+/**
+ * One material per ad for a panel of the given size (metres), a little self-lit so the ad stays readable at
+ * dusk and at night. The texture is 1024 px wide (512 for small panels) and shaped like the panel.
+ */
+export function adMaterials(panelW: number, panelH: number, texW = 1024): THREE.MeshLambertMaterial[] {
+  const texH = Math.round((texW * panelH) / panelW);
+  return AD_URLS.map((url) => {
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.35 });
+    loadAd(url, mat, texW, texH);
+    return mat;
+  });
 }
 
 interface Slot {
@@ -72,17 +82,8 @@ interface Slot {
 export class AdBoards {
   readonly group = new THREE.Group();
   /** one material per ad, shared by every board showing it */
-  private mats: THREE.MeshLambertMaterial[] = [];
+  private mats = adMaterials(PANEL_W, PANEL_H);
   private boards: THREE.Group[] = [];
-
-  constructor() {
-    for (const url of AD_URLS) {
-      // a little self-lit so the ad stays readable at dusk and at night
-      const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.35 });
-      loadAd(url, mat);
-      this.mats.push(mat);
-    }
-  }
 
   get count(): number {
     return AD_URLS.length;
@@ -162,7 +163,7 @@ export class AdBoards {
   }
 }
 
-function shuffle<T>(a: T[]): T[] {
+export function shuffle<T>(a: T[]): T[] {
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];

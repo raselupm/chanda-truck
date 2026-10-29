@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { ROAD } from '../config/tuning';
 import { vertexColorMaterial } from '../utils/geometry';
 import { hash2, mulberry32, pick, range, type Rng } from '../utils/rng';
-import { posterTexture, windowTexture, type PosterSpec } from '../utils/textures';
+import { windowTexture } from '../utils/textures';
+import { adMaterials, shuffle } from './AdBoards';
 import { propGeometry, type PropKind } from './Props';
 import type { Track } from './Track';
 
@@ -17,29 +18,6 @@ const PADDY_COLORS = [0x7fb23a, 0x8cbf3f, 0x6fa333, 0xa8c04a, 0x94b83d, 0xc2b85a
 const SHOP_COLORS = [0xf2e6c9, 0xe8c9a0, 0xb5d3e7, 0xf4b6a6, 0xd5e8b5, 0xf6e27f];
 const BUILDING_COLORS = [0xe9e2d0, 0xd9c7a8, 0xc7cdd3, 0xe8d3b9, 0xbfb5a6, 0xd6a77a, 0xa9b8a0];
 
-/** Harmless parody billboards (all brands are made up). */
-const BILLBOARDS: PosterSpec[] = [
-  { icon: '{tea}', title: 'এক কাপ চা ৳১৫', sub: 'গত সপ্তাহে ছিল ৳১০', fine: 'দাম বাড়ার আগে খেয়ে নিন', bg: ['#fff3d6', '#f4c48a'], fg: '#4a2a12', accent: '#c1121f', pattern: 'rays' },
-  { icon: '{onion}', title: 'পেঁয়াজ কাটলে কাঁদবেন', sub: 'দাম শুনলেও কাঁদবেন', bg: ['#6a4c93', '#9d4edd'], fg: '#ffffff', accent: '#ffca3a', pattern: 'dots' },
-  { icon: '{truck}', title: 'মায়ের দোয়া ট্রান্সপোর্ট', sub: 'সারাদেশে সবজি পরিবহন', fine: '*চাঁদা আলাদা', bg: ['#ffd166', '#f4a261'], fg: '#1d3557', accent: '#e63946', pattern: 'stripes' },
-  { icon: '{phone}', title: 'ভাই ভাই টেলিকম', sub: 'নেটওয়ার্ক নাই, ভালোবাসা আছে', bg: ['#118ab2', '#073b4c'], fg: '#ffffff', accent: '#ef476f', pattern: 'rays' },
-  { icon: '{fuchka}', title: 'ফুচকা কিং', sub: 'টক বেশি, ঝাল আরও বেশি', bg: ['#ffe8d6', '#ffb4a2'], fg: '#6d2e46', accent: '#e5383b', pattern: 'dots' },
-  { icon: '{fish}', title: 'ইলিশ ভাই রেস্টুরেন্ট', sub: 'কাঁটা বেছে খাওয়ানো হয়', bg: ['#caf0f8', '#48cae4'], fg: '#023e8a', accent: '#0077b6', pattern: 'stripes' },
-  { icon: '{building}', title: 'স্বপ্ননীড় হাউজিং', sub: 'রাস্তা নাই, পার্কিং আছে', fine: '*বন্যামুক্ত (শুকনো মৌসুমে)', bg: ['#e9edc9', '#ccd5ae'], fg: '#283618', accent: '#bc6c25', pattern: 'plain' },
-  { icon: '{bald}', title: 'টাক-বাবা হেয়ার অয়েল', sub: '৭ দিনে চুল, না হলে আরও ৭ দিন', bg: ['#2b2d42', '#8d99ae'], fg: '#ffffff', accent: '#ef233c', pattern: 'rays' },
-  { icon: '{umbrella}', title: 'ছাতা ভাড়া', sub: 'বৃষ্টি এলে ৳২০, না এলে ৳১০', bg: ['#a2d2ff', '#cdb4db'], fg: '#22223b', accent: '#7b2cbf', pattern: 'dots' },
-  { icon: '{sweets}', title: 'মিষ্টিমুখ মিষ্টান্ন ভাণ্ডার', sub: 'রসগোল্লায় রসের গ্যারান্টি', bg: ['#fff1e6', '#fde2e4'], fg: '#7f5539', accent: '#d62828', pattern: 'stripes' },
-  { icon: '{books}', title: 'স্মার্ট কোচিং সেন্টার', sub: 'জিপিএ-৫ গ্যারান্টি*', fine: '*শর্ত প্রযোজ্য, শর্ত গোপন', bg: ['#80ffdb', '#5390d9'], fg: '#1b263b', accent: '#e63946', pattern: 'rays' },
-  { icon: '{receipt}', title: 'সাবধানে চালান', sub: 'চাঁদার রশিদ সংগ্রহ করুন*', fine: '*রশিদ দেওয়া হয় না', bg: ['#1d3557', '#457b9d'], fg: '#ffffff', accent: '#e63946', pattern: 'stripes' },
-  { icon: '{road}', title: 'রাস্তা আপনার', sub: 'টোল আমাদের', bg: ['#2a9d8f', '#264653'], fg: '#ffffff', accent: '#e9c46a', pattern: 'plain' },
-  { icon: '{detective}', title: 'কমিটি গঠন করা হয়', sub: 'তদন্ত? পরে দেখা যাবে', bg: ['#f8f9fa', '#dee2e6'], fg: '#c1121f', accent: '#1d3557', pattern: 'dots' },
-  { icon: '{chili}', title: 'দাদা ভাইয়ের ঝালমুড়ি', sub: 'ঝাল বেশি, দাম আরও বেশি', bg: ['#ffba08', '#f48c06'], fg: '#370617', accent: '#9d0208', pattern: 'rays' },
-  { icon: '{cement}', title: 'পালোয়ান সিমেন্ট', sub: 'রাস্তা ভাঙবে, দেয়াল না', bg: ['#adb5bd', '#495057'], fg: '#ffffff', accent: '#f77f00', pattern: 'stripes' },
-  { icon: '{cow}', title: 'খাঁটি গরুর দুধ', sub: 'পানি মেশানো হয় না*', fine: '*বর্ষাকাল ছাড়া', bg: ['#ffffff', '#d8f3dc'], fg: '#1b4332', accent: '#2d6a4f', pattern: 'dots' },
-  { icon: '{trafficlight}', title: 'জ্যাম কোচিং', sub: '৩ ঘণ্টায় ধৈর্যের ডিগ্রি', bg: ['#ff595e', '#ffca3a'], fg: '#1d1d1d', accent: '#1982c4', pattern: 'rays' },
-  { icon: '{mango}', title: 'রাজশাহীর আম', sub: 'ঢাকায় পৌঁছে দাম তিন গুণ', bg: ['#fff3b0', '#e09f3e'], fg: '#540b0e', accent: '#335c67', pattern: 'stripes' },
-];
-
 interface Placement {
   kind: PropKind;
   m: THREE.Matrix4;
@@ -50,6 +28,9 @@ export class Scenery {
   readonly group = new THREE.Group();
   private meshes = new Map<PropKind, THREE.InstancedMesh>();
   private billboards: THREE.Object3D[] = [];
+  /** the small billboards show the ads from the ads/ folder (one material per ad), reshuffled every run */
+  private adMats = adMaterials(6, 3, 512);
+  private adPanels: THREE.Mesh[] = [];
   private tmpQ = new THREE.Quaternion();
   private tmpE = new THREE.Euler();
   private tmpP = new THREE.Vector3();
@@ -69,9 +50,10 @@ export class Scenery {
       this.group.add(mesh);
     }
     const boardGeo = new THREE.PlaneGeometry(6, 3);
-    for (let i = 0; i < BILLBOARDS.length; i++) {
-      const board = new THREE.Mesh(boardGeo, new THREE.MeshLambertMaterial({ map: posterTexture(BILLBOARDS[i]) }));
+    for (let i = 0; this.adMats.length && i < CAPACITY.billboardFrame; i++) {
+      const board = new THREE.Mesh(boardGeo, this.adMats[0]);
       board.position.set(0, 4.6, 0.22);
+      this.adPanels.push(board);
       const holder = new THREE.Group();
       holder.add(new THREE.Mesh(propGeometry('billboardFrame'), vertexColorMaterial()));
       holder.add(board);
@@ -79,10 +61,21 @@ export class Scenery {
       this.billboards.push(holder);
       this.group.add(holder);
     }
+    this.shuffleAds();
   }
 
   setTrack(track: Track): void {
     this.track = track;
+    this.shuffleAds();
+  }
+
+  /** Give every small billboard a random ad, dealt from a shuffled deck so nearby boards tend to differ. */
+  private shuffleAds(): void {
+    let deck: THREE.MeshLambertMaterial[] = [];
+    for (const panel of this.adPanels) {
+      if (!deck.length) deck = shuffle([...this.adMats]);
+      panel.material = deck.pop()!;
+    }
   }
 
   private place(out: Placement[], kind: PropKind, s: number, d: number, rotY: number, sx = 1, sy = 1, sz = 1, color?: number): void {
@@ -129,7 +122,7 @@ export class Scenery {
     }
 
     this.billboards.forEach((b) => (b.visible = false));
-    for (const slot of bbSlots) {
+    for (const slot of this.billboards.length ? bbSlots : []) {
       if (this.track.isBlocked(slot.s, slot.d)) continue;
       const n = this.billboards.length;
       const b = this.billboards[((slot.idx % n) + n) % n];
