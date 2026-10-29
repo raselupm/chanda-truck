@@ -41,7 +41,7 @@ export const ECONOMY = {
 
   ramSpeedKmh: 90,
   tollMaxSpeedKmh: 20,
-  chaseRequiredSeconds: 20,
+  chaseRequiredSeconds: 10,
   /** 'reset' = dropping below ramSpeedKmh resets the chase meter to 0; 'pause' = it just stops filling */
   chaseMeterMode: 'reset' as 'reset' | 'pause',
 } as const;

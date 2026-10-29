@@ -64,7 +64,7 @@ All numbers live in `src/config/`:
   - `penaltyMultiplierSlowHit` (1.5×) and `caughtMultiplier` (2×). The base amount is booked as CHANDA,
     the extra as PENALTY.
   - `fees.roadTax`, `fees.jamunaToll`, `fees.padmaToll`
-  - `cargoDamagePct.*`, `ramSpeedKmh` (90), `tollMaxSpeedKmh` (20), `chaseRequiredSeconds` (20)
+  - `cargoDamagePct.*`, `ramSpeedKmh` (90), `tollMaxSpeedKmh` (20), `chaseRequiredSeconds` (10)
   - `chaseMeterMode`: `'reset'` (default: dropping below 90 resets the meter) or `'pause'`
 - **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর). Each has an ordered list of legal toll
   stops and a number of random chanda barriers:
