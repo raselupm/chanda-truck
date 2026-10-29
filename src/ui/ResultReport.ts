@@ -31,6 +31,7 @@ export const BREAKDOWN_LABELS: Record<keyof typeof CATEGORY_COLORS, string> = {
 export function outcomeLine(r: ResultData): { icon: string; text: string } {
   if (r.outcome === 'crash') return { icon: '{crash}', text: 'সংঘর্ষে যাত্রা শেষ — মাল পৌঁছায়নি' };
   if (r.outcome === 'toll') return { icon: '{siren}', text: 'টোল প্লাজায় ট্রাক জব্দ — মাল পৌঁছায়নি' };
+  if (r.outcome === 'fall') return { icon: '{crash}', text: 'পাহাড়ি বাঁকে ট্রাক খাদে পড়ে গেছে — মাল পৌঁছায়নি' };
   if (r.outcome === 'helper') return { icon: '{warning}', text: 'হেল্পারকে নিতে ভুলে গেছেন! আবার চেষ্টা করেন।' };
   if (r.deliveredKg <= 0) return { icon: '{box}', text: 'কাওরান বাজারে পৌঁছেছেন — কিন্তু ট্রাক খালি' };
   return { icon: '{ok}', text: `কাওরান বাজারে পৌঁছেছেন — ${formatKg(r.deliveredKg)} মাল ডেলিভারি` };

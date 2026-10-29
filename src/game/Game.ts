@@ -38,6 +38,7 @@ import { Farm } from '../world/Farm';
 import { RoadStreamer } from '../world/RoadStreamer';
 import { Scenery } from '../world/Scenery';
 import { ShortcutRoads } from '../world/ShortcutRoads';
+import { HillRoad } from '../world/HillRoad';
 import type { SetPiece } from '../world/SetPiece';
 import { TollPlaza } from '../world/TollPlaza';
 import { Track } from '../world/Track';
@@ -82,6 +83,10 @@ export class Game {
   readonly mud: Mud;
   private ads = new AdBoards();
   private shortcuts: ShortcutRoads;
+  private hillRoad = new HillRoad(this);
+  /** fell off the hill road: which side, and for how long (the truck tumbles into the valley) */
+  private fallSide: -1 | 0 | 1 = 0;
+  private fallT = 0;
   readonly clutter: CityClutter;
   readonly weather = new Weather();
   /** every set piece (farms, barriers, tolls, bridges, market) */
@@ -127,7 +132,7 @@ export class Game {
     this.mud = new Mud(this);
     this.clutter = new CityClutter(this.track);
     this.shortcuts = new ShortcutRoads(this);
-    scene.add(this.shortcuts.group);
+    scene.add(this.shortcuts.group, this.hillRoad.group);
     scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group, this.ads.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
@@ -174,6 +179,7 @@ export class Game {
     this.truck.setTrack(this.track);
     this.clutter.setTrack(this.track);
     this.shortcuts.build();
+    this.hillRoad.build(this.track);
     this.slowZones.build(route.slowZones);
     this.brokenRoads.build(route.broken);
     this.thieves.reset();
@@ -240,6 +246,7 @@ export class Game {
     this.modal = false;
     this.endTimer = -1;
     this.pendingOutcome = null;
+    this.fallSide = 0;
 
     this.ledger = new Ledger();
     this.cargo = new Cargo();
@@ -280,6 +287,7 @@ export class Game {
     this.modal = false;
     this.closeOverlays();
     this.endTimer = -1;
+    this.fallSide = 0;
     this.hud.show(false);
     this.touch.show(false);
     this.chase.reset();
@@ -464,6 +472,7 @@ export class Game {
       crash: '{crash} ভয়াবহ সংঘর্ষ!',
       toll: '{siren} টোল প্লাজা ভাঙার চেষ্টা — ট্রাক জব্দ!',
       helper: '{warning} হেল্পারকে নিতে ভুলে গেছেন! আবার চেষ্টা করেন।',
+      fall: '{crash} বাঁকে বেশি জোরে — ট্রাক খাদে পড়ে গেল!',
     } as const;
     this.hud.warn(why[reason], 'danger', 3);
     if (reason === 'toll') this.sound.whistle();
@@ -499,6 +508,21 @@ export class Game {
   bypasses(s: number): boolean {
     const r = this.truck.road;
     return !!r && !r.inMouth(this.truck.s) && s > r.from && s < r.to;
+  }
+
+  /** The truck rolls over the edge and down the slope into the valley (the camera stays on the road). */
+  private tumble(dt: number): void {
+    if (!this.state.paused) this.fallT = Math.min(this.fallT + dt, 2.5);
+    const k = this.fallSide;
+    const f = this.fallT;
+    const r = this.truckModel.root;
+    const h = this.truck.heading;
+    const out = 3 * f + 2 * f * f;
+    // sideways (across the road) is (cos, sin) of the heading in (x, z)
+    r.position.x += k * out * Math.cos(h);
+    r.position.z += k * out * Math.sin(h);
+    r.position.y = Math.max(0.6, r.position.y - 4.9 * f * f);
+    r.rotation.z = -k * Math.min(f * 2.2, 2.6);
   }
 
   nextBlockingPiece(fromS: number): SetPiece | null {
@@ -541,6 +565,14 @@ export class Game {
         this.thieves.update(dt);
         this.mud.update(dt);
         this.shortcuts.update();
+        this.hillRoad.update(dt);
+        // ran off the edge of the hill road where it drops into the valley
+        const off = phase === 'HIGHWAY' ? this.track.fallsOff(t.s, t.d) : 0;
+        if (off) {
+          this.fallSide = off;
+          this.fallT = 0;
+          this.gameOver('fall');
+        }
         const honking = this.input.horn && !this.modal && phase !== 'ARRIVAL';
         this.sound.horn(honking);
         // Horn: each press is a tap; holding it counts as a long press (buses & trucks need that or 3 taps)
@@ -585,6 +617,7 @@ export class Game {
       p.group.visible = t.s > a && t.s < b;
     }
     this.truckModel.update(dt, t.x, t.y, t.z, t.heading, t.pitch, t.speed, t.steer, t.yawRate, t.bump);
+    if (this.fallSide) this.tumble(dt);
     this.cam.update(dt, t);
     if (!this.state.paused) this.weather.update(dt);
     const look = this.weather.look;

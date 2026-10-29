@@ -58,7 +58,7 @@ const MAX_PROFIT = maxProfit();
 const MAX_RUN_POINTS = computeScore({ arrived: true, profit: MAX_PROFIT, driveTime: 1, distance: 1e9 }).points;
 const DISTANCE_RANGE = [5_000, 60_000] as const;
 const ID_RE = /^[a-zA-Z0-9-]{16,64}$/;
-const OUTCOMES = ['arrived', 'crash', 'toll', 'helper'];
+const OUTCOMES = ['arrived', 'crash', 'toll', 'helper', 'fall'];
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {

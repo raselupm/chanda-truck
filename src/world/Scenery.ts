@@ -12,13 +12,15 @@ import type { Track } from './Track';
 
 const CAPACITY: Record<PropKind, number> = {
   banana: 500, roundTree: 500, palm: 300, bamboo: 250, hut: 120, teaStall: 80, shop: 260, pole: 120,
-  haystack: 120, paddy: 500, pond: 60, building: 400, pavement: 200, shrub: 400, crate: 1,
+  haystack: 120, paddy: 500, pond: 60, building: 400, pavement: 200, shrub: 400, crate: 1, mound: 80,
 };
 
 /** how many scenery billboards can be on screen at once */
 const BILLBOARDS = 24;
 /** extra distance from the road so the full-size panel (angled toward the road) clears the shoulder */
 const BB_PAD = PANEL_W / 2 - 3;
+
+const HILL_COLORS = [0x4f7a34, 0x5a8a3a, 0x3f6a2c, 0x6a8f45, 0x557a3a];
 
 const PADDY_COLORS = [0x7fb23a, 0x8cbf3f, 0x6fa333, 0xa8c04a, 0x94b83d, 0xc2b85a];
 const SHOP_COLORS = [0xf2e6c9, 0xe8c9a0, 0xb5d3e7, 0xf4b6a6, 0xd5e8b5, 0xf6e27f];
@@ -79,12 +81,12 @@ export class Scenery {
     }
   }
 
-  private place(out: Placement[], kind: PropKind, s: number, d: number, rotY: number, sx = 1, sy = 1, sz = 1, color?: number): void {
+  private place(out: Placement[], kind: PropKind, s: number, d: number, rotY: number, sx = 1, sy = 1, sz = 1, color?: number, ground?: number): void {
     const t = this.track;
     if (t.isBlocked(s, d)) return;
     // fields, ponds and buildings are big: keep the whole thing (ends and middle) off the village shortcuts
     if ((kind === 'paddy' || kind === 'pond' || kind === 'building') && [-0.5, 0, 0.5].some((k) => t.nearShortcut(s + k * sz, d, sx / 2 + 2))) return;
-    const y = t.isRiver(s, 0) ? -100 : 0;
+    const y = ground ?? (t.isRiver(s, 0) ? -100 : 0);
     this.tmpE.set(0, rotY, 0);
     this.tmpQ.setFromEuler(this.tmpE);
     const m = new THREE.Matrix4().compose(
@@ -206,6 +208,22 @@ export class Scenery {
     };
 
     switch (zone) {
+      case 'hill': {
+        // jungle on the hillsides and down in the valleys (standing on the slope), hills all around
+        for (let i = 0; i < 12; i++) {
+          const side = rng() < 0.5 ? -1 : 1;
+          const s = s0 + rng() * L;
+          const d = side * (t.halfWidth(s) + 3 + rng() * 55);
+          const sc = range(rng, 0.9, 1.5);
+          this.place(out, pick(rng, ['roundTree', 'roundTree', 'bamboo', 'banana', 'palm', 'shrub'] as PropKind[]), s, d, rng() * 6.28, sc, sc, sc, undefined, t.hillGround(s, d));
+        }
+        if (rng() < 0.5) {
+          const side = rng() < 0.5 ? -1 : 1;
+          const w = range(rng, 60, 130);
+          this.place(out, 'mound', s0 + rng() * L, side * range(rng, 140, 300), rng() * 6.28, w, range(rng, 35, 80), w * range(rng, 0.7, 1.2), pick(rng, HILL_COLORS));
+        }
+        break;
+      }
       case 'village': {
         trees(4, hw + 6, 34, ['banana', 'banana', 'roundTree', 'bamboo', 'palm']);
         if (rng() < 0.45) {

@@ -3,12 +3,27 @@
 // Around every event the road is perfectly straight at x = 0, so set pieces need no rotation.
 
 import * as THREE from 'three';
-import { CITY, JUNCTION, ROAD, SHORTCUT } from '../config/tuning';
+import { CITY, HILL, JUNCTION, ROAD, SHORTCUT } from '../config/tuning';
 import type { BridgeStyle, RouteDef } from '../config/route';
 import { clamp, smoothstep } from '../utils/math';
+import { mulberry32 } from '../utils/rng';
 import { Shortcut } from './Shortcut';
 
-export type ZoneKind = 'village' | 'rural' | 'town' | 'river' | 'city';
+export type ZoneKind = 'village' | 'rural' | 'town' | 'river' | 'city' | 'hill';
+
+/** The land beside a hill road on one side: up to a hillside, or down into the valley. */
+export interface HillSide {
+  /** verge edge (|d| where the land starts) */
+  edge: number;
+  /** land height at the far end of the slope, relative to the road's elevation (negative = a drop) */
+  rel: number;
+  /** horizontal width of the slope */
+  slope: number;
+}
+
+/** a hillside's flat top and its back slope down to the valley floor (m) */
+const HILL_TOP = 30;
+const HILL_BACK = 25;
 
 export interface BridgeSpan {
   start: number;
@@ -52,6 +67,9 @@ export class Track {
   readonly shortcuts: Shortcut[] = [];
   private cx: Float32Array;
   private el: Float32Array;
+  /** d²x/ds²: how sharply the road bends (only kept for the hill road) */
+  private curv: Float32Array;
+  private hillWave = { px: [0, 0], pe: [0, 0], pw: 0 };
 
   constructor(readonly route: RouteDef) {
     this.length = route.length;
@@ -70,6 +88,13 @@ export class Track {
       straight.push([e.s - ROAD.straightBefore, end]);
     }
     straight.push([route.cityStartS - 200, this.length + 2000]);
+    // the hill road has its own bends (see hillX)
+    const hills = route.hills;
+    if (hills) {
+      straight.push([hills.from, hills.to]);
+      const rng = mulberry32(hills.seed);
+      this.hillWave = { px: [rng() * 6.28, rng() * 6.28], pe: [rng() * 6.28, rng() * 6.28], pw: rng() * 6.28 };
+    }
     straight.sort((a, b) => a[0] - b[0]);
     const merged: [number, number][] = [];
     for (const r of straight) {
@@ -106,8 +131,8 @@ export class Track {
         x = bd.amp * env * env * Math.sin(2 * Math.PI * bd.n * t + bd.phase);
         break;
       }
-      this.cx[i] = x;
-      let h = 0;
+      this.cx[i] = x + this.hillX(s);
+      let h = this.hillEl(s);
       for (const b of this.bridges) {
         const ramp = b.ramp;
         if (s >= b.start - ramp && s <= b.end + ramp) {
@@ -125,6 +150,88 @@ export class Track {
       this.el[i] = h;
     }
     for (const def of route.shortcuts) this.shortcuts.push(new Shortcut(def, this));
+    this.curv = new Float32Array(n);
+    if (hills) {
+      for (let i = 1; i + 1 < n; i++) {
+        const s = ORIGIN + i * STEP;
+        if (s > hills.from - 10 && s < hills.to + 10) this.curv[i] = (this.cx[i + 1] - 2 * this.cx[i] + this.cx[i - 1]) / (STEP * STEP);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- the hill road
+
+  /** 0 → 1 → 0 over the hill road, easing in and out over `ease` metres (at most a quarter of it each end) */
+  private hillEnv(s: number, ease: number): number {
+    const h = this.route.hills;
+    if (!h || s <= h.from || s >= h.to) return 0;
+    ease = Math.min(ease, (h.to - h.from) / 4);
+    return smoothstep(h.from, h.from + ease, s) * (1 - smoothstep(h.to - ease, h.to, s));
+  }
+
+  private hillX(s: number): number {
+    const env = this.hillEnv(s, 200);
+    if (!env) return 0;
+    const w = this.hillWave;
+    let x = 0;
+    for (let k = 0; k < 2; k++) x += HILL.bendAmp[k] * Math.sin((2 * Math.PI * s) / HILL.bendLength[k] + w.px[k]);
+    return env * x;
+  }
+
+  private hillEl(s: number): number {
+    const env = this.hillEnv(s, 500);
+    if (!env) return 0;
+    const w = this.hillWave;
+    let e = HILL.baseHeight;
+    for (let k = 0; k < 2; k++) e += HILL.rise[k] * Math.sin((2 * Math.PI * s) / HILL.riseLength[k] + w.pe[k]);
+    return env * e;
+  }
+
+  isHill(s: number): boolean {
+    const h = this.route.hills;
+    return !!h && s >= h.from && s <= h.to;
+  }
+
+  /** How sharply the road bends at s (1/radius, + = toward +x). */
+  curvature(s: number): number {
+    return this.sample(this.curv, s);
+  }
+
+  /**
+   * The land on side k (-1 left, 1 right) of a hill road: the inside of a bend rises to a hillside, the
+   * outside drops into the valley (the valley floor is y = 0).
+   */
+  hillSide(s: number, k: -1 | 1): HillSide {
+    const el = this.elevation(s);
+    const edge = this.halfWidth(s) + HILL.shoulder;
+    const inside = k * this.curvature(s) / HILL.wallCurvature + 0.5 * k * Math.sin(s / 220 + this.hillWave.pw);
+    const m = clamp(inside, 0, 1) * this.hillEnv(s, 300);
+    // m = 0: down to the valley floor; m = 1: a hillside wallHeight above the road
+    const top = m * (el + HILL.wallHeight);
+    const rel = top - el;
+    return { edge, rel, slope: 4 + Math.abs(rel) * 0.9 };
+  }
+
+  /** Height of the land at (s, d) beside a hill road (for trees on the slopes). */
+  hillGround(s: number, d: number): number {
+    const el = this.elevation(s);
+    const side = this.hillSide(s, d < 0 ? -1 : 1);
+    const a = Math.abs(d) - side.edge;
+    const road = el + ROAD.top - 0.02;
+    if (a <= 0) return road;
+    if (a < side.slope) return road + (el + side.rel - road) * (a / side.slope);
+    const top = el + side.rel;
+    if (top < 0.5) return 0;
+    if (a < side.slope + HILL_TOP) return top;
+    return Math.max(0, top * (1 - (a - side.slope - HILL_TOP) / HILL_BACK));
+  }
+
+  /** Side (-1 / 1) the truck at (s, d) has run off into a drop on, or 0. */
+  fallsOff(s: number, d: number): -1 | 0 | 1 {
+    if (!this.isHill(s)) return 0;
+    const k = d < 0 ? -1 : 1;
+    const side = this.hillSide(s, k);
+    return Math.abs(d) > side.edge + 0.3 && -side.rel > HILL.fallDrop ? k : 0;
   }
 
   private sample(arr: Float32Array, s: number): number {
@@ -157,6 +264,12 @@ export class Track {
   }
 
   halfWidth(s: number): number {
+    // the 2-lane hill road (wider along x where it runs at an angle)
+    const h = this.route.hills;
+    if (h && s > h.from - 60 && s < h.to + 60) {
+      const k = smoothstep(h.from - 60, h.from, s) * (1 - smoothstep(h.to, h.to + 60, s));
+      return (ROAD.highwayHalfWidth + (HILL.halfWidth - ROAD.highwayHalfWidth) * k) / Math.cos(this.headingAt(s));
+    }
     const hs = this.route.highwayStartS;
     if (s < hs - 60) return ROAD.villageHalfWidth;
     if (s < hs) return ROAD.villageHalfWidth + (ROAD.highwayHalfWidth - ROAD.villageHalfWidth) * smoothstep(hs - 60, hs, s);
@@ -179,6 +292,8 @@ export class Track {
   /** Lane centre (always positive) for traffic: inner or outer lane; the avenue only has its inner lane open. */
   laneD(s: number, outer: boolean): number {
     if (this.wideness(s) > 0.5) return CITY.laneWidth / 2;
+    // one lane each way on the hill road
+    if (this.isHill(s)) return this.halfWidth(s) / 2;
     return (outer ? 0.75 : 0.25) * ROAD.highwayHalfWidth;
   }
 
@@ -207,12 +322,21 @@ export class Track {
     if (s < this.route.highwayStartS) return 'village';
     if (this.isRiver(s)) return 'river';
     if (s >= this.route.cityStartS) return 'city';
+    if (this.isHill(s)) return 'hill';
     if (this.route.townZones.some(([a, b]) => s >= a && s <= b)) return 'town';
     return 'rural';
   }
 
   /** Allowed [min, max] lateral offset for the truck centre at s. */
   lateralRange(s: number): [number, number] {
+    // hill road: a hillside stops you at the verge; where it drops away you can run off (and fall)
+    if (this.isHill(s)) {
+      const lim = (k: -1 | 1) => {
+        const side = this.hillSide(s, k);
+        return side.rel > 1.5 ? side.edge - 1.25 : side.edge + 2.5;
+      };
+      return [-lim(-1), lim(1)];
+    }
     let limit: number;
     if (this.bridgeAt(s)) limit = this.halfWidth(s) + 1.0 - 1.35;
     else if (this.isFlyover(s)) limit = this.halfWidth(s) + ROAD.shoulder - 1.35;

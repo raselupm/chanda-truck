@@ -30,7 +30,7 @@ export interface BarrierEvent extends EventBase {
   workers: number;
 }
 
-export type BridgeStyle = 'jamuna' | 'padma' | 'lalon';
+export type BridgeStyle = 'jamuna' | 'padma' | 'lalon' | 'shahAmanat' | 'meghnaGumti';
 
 export interface TollEvent extends EventBase {
   /** roadTax = ROAD_TAX ledger category; roadToll / bridgeToll = TOLL */
@@ -107,6 +107,8 @@ export interface RouteDef {
   broken: [number, number][];
   /** the city avenue with 4 + 4 lanes (only the inner ones open) */
   wide: [number, number] | null;
+  /** the hill road right after the village (Rangamati): its s range and the seed of its bends */
+  hills: { from: number; to: number; seed: number } | null;
   /** village shortcuts round some of the barriers */
   shortcuts: ShortcutDef[];
   events: RouteEvent[];
@@ -126,6 +128,8 @@ export interface StartPoint {
   legal: LegalStop[];
   /** how many illegal barriers are scattered along the way */
   randomBarriers: number;
+  /** metres of hill road between the village and the highway */
+  hill?: number;
   farmsBn: string;
 }
 
@@ -143,6 +147,14 @@ const JAMUNA: LegalStop = {
 const PADMA: LegalStop = {
   id: 'padma', type: 'bridgeToll', feeKey: 'padmaToll', nameBn: 'পদ্মা সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'পদ্মা সেতু', style: 'padma', offset: 520, length: 760 },
+};
+const SHAH_AMANAT: LegalStop = {
+  id: 'shahAmanat', type: 'bridgeToll', feeKey: 'shahAmanatToll', nameBn: 'শাহ আমানত সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'শাহ আমানত সেতু', style: 'shahAmanat', offset: 300, length: 600 },
+};
+const MEGHNA_GUMTI: LegalStop = {
+  id: 'meghnaGumti', type: 'bridgeToll', feeKey: 'meghnaGumtiToll', nameBn: 'মেঘনা-গোমতী সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'মেঘনা-গোমতী সেতু', style: 'meghnaGumti', offset: 300, length: 700 },
 };
 const EXPRESSWAY: LegalStop = {
   id: 'expressway', type: 'roadToll', feeKey: 'expresswayToll', nameBn: 'এক্সপ্রেসওয়ে টোল', icon: '{road}',
@@ -172,6 +184,15 @@ export const START_POINTS: StartPoint[] = [
     legal: [PADMA, EXPRESSWAY],
     randomBarriers: 6,
     farmsBn: 'ফরিদপুরের সবজি ক্ষেত',
+  },
+  {
+    id: 'rangamati',
+    nameBn: 'রাঙামাটি',
+    pathBn: 'পাহাড়ি রাস্তা → চট্টগ্রাম → শাহ আমানত সেতু → মেঘনা-গোমতী সেতু',
+    legal: [SHAH_AMANAT, MEGHNA_GUMTI],
+    randomBarriers: 6,
+    hill: 1_250,
+    farmsBn: 'রাঙামাটির পাহাড়ি সবজি ক্ষেত',
   },
 ];
 
@@ -250,7 +271,9 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   const events: RouteEvent[] = [...FARMS];
   const townZones: [number, number][] = [];
   const broken: [number, number][] = [];
-  let s = LAYOUT.firstEvent;
+  // The hill road starts where the village road meets the highway; the events begin after it
+  const hills = sp.hill ? { from: LAYOUT.highwayStart + 150, to: LAYOUT.highwayStart + 150 + sp.hill, seed: Math.floor(rng() * 1e9) } : null;
+  let s = hills ? hills.to + 600 : LAYOUT.firstEvent;
   let b = 0;
   let r = 0;
   let w = 0;
@@ -330,6 +353,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     ...townZones.map(([a, b2]) => [a - 200, b2 + 200] as [number, number]),
     ...broken.map(([a, b2]) => [a - 150, b2 + 150] as [number, number]),
     ...shortcuts.map((sc) => [sc.from - 200, sc.to + 200] as [number, number]),
+    ...(hills ? [[hills.from - 200, hills.to + 200] as [number, number]] : []),
   ];
   for (const e of events) {
     if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
@@ -359,6 +383,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     broken,
     wide,
     shortcuts,
+    hills,
     events,
     length: marketS + 300,
   };

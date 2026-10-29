@@ -24,6 +24,8 @@ export const ECONOMY = {
     jamunaToll: 1_600,
     padmaToll: 2_800,
     expresswayToll: 900,
+    shahAmanatToll: 250,
+    meghnaGumtiToll: 650,
   },
 
   /** % of current cargo kg lost in each situation */

@@ -66,11 +66,12 @@ All numbers live in `src/config/`:
   - `speedFine` (base + per km/h over the limit, speed cameras in slow zones)
   - `cargoDamagePct.*`, `ramSpeedKmh` (90), `tollMaxSpeedKmh` (20), `chaseRequiredSeconds` (10)
   - `chaseMeterMode`: `'reset'` (default: dropping below 90 resets the meter) or `'pause'`
-- **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর). Each has an ordered list of legal toll
+- **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর, রাঙামাটি). Each has an ordered list of legal toll
   stops and a number of random chanda barriers:
   - যশোর: লালন শাহ সেতু → নাটোর সড়ক টোল → যমুনা সেতু, 10 barriers
   - রাজশাহী: নাটোর সড়ক টোল → যমুনা সেতু, 6 barriers
   - ফরিদপুর: পদ্মা সেতু → এক্সপ্রেসওয়ে টোল, 6 barriers
+  - রাঙামাটি: 1.25 km hill road → শাহ আমানত সেতু → মেঘনা-গোমতী সেতু, 6 barriers
 
   `generateRoute()` re-rolls the barrier positions, places and amounts every run
   (`ECONOMY.randomChanda`). The last barrier is always at the city entrance. Spacing rules are in
@@ -103,7 +104,25 @@ All numbers live in `src/config/`:
   truss, the two-track railway deck is enclosed inside the truss, and it stands on massive piers.
   The deck is 22 m up, reached by long approach ramps, with a roadside name monument.
 
+- **Shah Amanat (Karnaphuli):** modelled on the real extradosed bridge. A prestressed concrete box
+  girder over 115 + 3 × 200 + 115 m spans (scaled), deeper at the four short pylons. The pylons stand in
+  the median, each with a single plane of stay cables fanning down to the middle of the deck, and the
+  median keeps your traffic in the left lanes. A short viaduct on round piers follows.
+- **Meghna-Gumti:** a long prestressed concrete box girder built by balanced cantilever, with deep
+  haunches over every wall pier, and its newer steel twin bridge running alongside.
+
 Deck heights and ramp lengths are in `ROAD.bridgeStyles`.
+
+## Hill road (Rangamati)
+
+The রাঙামাটি route starts with 1.25 km of hill road before the highway (`HILL` in `tuning.ts`). It's two
+lanes, with tight bends (down to about 32 m radius), and climbs and dips 8–32 m above the valley floor.
+- On every bend the inside is a hillside cutting you scrape against; the outside drops into the jungle
+  valley. Take a bend too fast and the truck can't turn tightly enough, runs off the outside edge, rolls
+  down into the valley, and the run ends (outcome `fall`).
+- Before every sharp bend a sign gives the speed it can be taken at (worked out from the truck's steering
+  limits). The HUD warns you if you come at one too fast.
+- Traffic on the hill road keeps to 40 km/h, with no overtaking. There are no barriers or tolls on it.
 
 ## Railway crossings
 

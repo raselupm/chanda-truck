@@ -73,6 +73,9 @@ export const ROAD = {
     lalon: { deck: 7, ramp: 180 },
     // Padma: road on top of a deep steel truss (railway deck inside), so it sits much higher
     padma: { deck: 22, ramp: 440 },
+    // Shah Amanat (Karnaphuli): extradosed, tall enough for river ships
+    shahAmanat: { deck: 12, ramp: 260 },
+    meghnaGumti: { deck: 9, ramp: 210 },
   },
   /** straight road kept before / after every event (set pieces sit on x = 0) */
   straightBefore: 260,
@@ -131,6 +134,33 @@ export const SHORTCUT = {
   traffic: [4, 4] as [number, number],
 } as const;
 
+/**
+ * The hill road (Rangamati → Chattogram): two lanes, tight bends, climbing and dipping. On each bend the
+ * inside is a hillside, the outside a drop into the valley: run off the outside edge and the truck falls.
+ */
+export const HILL = {
+  /** two lanes (along the road, not along x) */
+  halfWidth: 3.5,
+  shoulder: 1,
+  /** bends: two waves on top of each other (metres) */
+  bendAmp: [17, 20] as [number, number],
+  bendLength: [190, 330] as [number, number],
+  /** road height above the valley floor: base + two waves */
+  baseHeight: 20,
+  rise: [8, 4] as [number, number],
+  riseLength: [1100, 450] as [number, number],
+  /** how high the hillside on the inside of a bend rises above the road */
+  wallHeight: 22,
+  /** a bend this tight (1/m) or tighter has a full hillside on its inside */
+  wallCurvature: 1 / 110,
+  /** the outside drops at least this much: run past the edge there and you fall */
+  fallDrop: 2.5,
+  /** bends tighter than this radius (m) get a warning sign with a safe speed */
+  sharpRadius: 80,
+  /** traffic on the hill road goes no faster than this */
+  trafficKmh: 40,
+} as const;
+
 export const EVENTS = {
   barrierWarnDistance: 400,
   tollWarnDistance: 500,
@@ -162,6 +192,7 @@ export const TRAFFIC = {
   density: {
     village: [0, 0],
     rural: [5, 6],
+    hill: [3, 4],
     town: [8, 7],
     river: [4, 5],
     city: [16, 12],

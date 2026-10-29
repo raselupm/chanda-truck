@@ -1,7 +1,7 @@
 // Streams road chunks ahead of the truck and recycles the ones behind.
 
 import * as THREE from 'three';
-import { ROAD, SHORTCUT } from '../config/tuning';
+import { HILL, ROAD, SHORTCUT } from '../config/tuning';
 import { hash2, mulberry32 } from '../utils/rng';
 import type { Track } from './Track';
 
@@ -24,7 +24,16 @@ const C = {
   // flyover over a village shortcut
   concrete: new THREE.Color(0xbdb6a8),
   parapetTop: new THREE.Color(0xd8d2c4),
+  // hill road: earth cuttings, grassy hilltops, the slope down into the valley
+  cutting: new THREE.Color(0x9a7b4f),
+  hilltop: new THREE.Color(0x4f7a34),
+  hillDark: new THREE.Color(0x3f6a2c),
+  valley: new THREE.Color(0x6f7a3c),
 };
+
+/** a hillside's flat top and its back slope down to the valley floor (as in Track.hillGround) */
+const HILL_TOP = 30;
+const HILL_BACK = 25;
 
 const PARAPET_H = 0.9;
 const PARAPET_W = 0.3;
@@ -143,7 +152,8 @@ export class RoadStreamer {
       const village = t.isVillage(sm);
       const bridge = t.bridgeAt(sm);
       const flyover = !bridge && t.isFlyover(sm);
-      const sh = bridge ? 1.0 : ROAD.shoulder;
+      const hill = t.isHill(sm);
+      const sh = bridge ? 1.0 : hill ? HILL.shoulder : ROAD.shoulder;
 
       // Surface with a little colour noise (patches, wear)
       const broken = !village && !bridge && t.isBroken(sm);
@@ -166,7 +176,7 @@ export class RoadStreamer {
       }
 
       // Shoulders
-      const shColor = village ? C.dirtDark : bridge || flyover ? C.bridgeSide : C.shoulder;
+      const shColor = village || hill ? C.dirtDark : bridge || flyover ? C.bridgeSide : C.shoulder;
       sb.quad(s0, s1, -hw0 - sh, -hw0, -hw1 - sh, -hw1, top - 0.02, top - 0.02, top - 0.02, top - 0.02, shColor);
       sb.quad(s0, s1, hw0, hw0 + sh, hw1, hw1 + sh, top - 0.02, top - 0.02, top - 0.02, top - 0.02, shColor);
 
@@ -178,6 +188,28 @@ export class RoadStreamer {
           sb.quad(s0, s1, e0, e0, e1, e1, top, top - depth, top, top - depth, C.bridgeSide);
         }
         sb.quad(s0, s1, -hw0 - sh, hw0 + sh, -hw1 - sh, hw1 + sh, top - depth, top - depth, top - depth, top - depth, C.bridgeUnder);
+      } else if (hill) {
+        // each side: a slope up to a hillside (cutting, grassy top, back down) or down into the valley
+        const el0 = t.elevation(s0);
+        const el1 = t.elevation(s1);
+        const yTop = top - 0.02;
+        for (const side of [-1, 1] as const) {
+          const a = t.hillSide(s0, side);
+          const b = t.hillSide(s1, side);
+          const band = (i0: number, i1: number, o0: number, o1: number, yi0: number, yi1: number, yo0: number, yo1: number, color: THREE.Color) =>
+            side < 0
+              ? sb.quad(s0, s1, -o0, -i0, -o1, -i1, yo0, yi0, yo1, yi1, color)
+              : sb.quad(s0, s1, i0, o0, i1, o1, yi0, yo0, yi1, yo1, color);
+          const up = a.rel > 0.5 || b.rel > 0.5;
+          band(a.edge, b.edge, a.edge + a.slope, b.edge + b.slope, yTop, yTop, a.rel, b.rel, up ? C.cutting : C.valley);
+          // a hillside: its grassy top and the back slope down to the valley floor
+          if (a.rel > -el0 + 0.5 || b.rel > -el1 + 0.5) {
+            const t0 = a.edge + a.slope;
+            const t1 = b.edge + b.slope;
+            band(t0, t1, t0 + HILL_TOP, t1 + HILL_TOP, a.rel, b.rel, a.rel, b.rel, rng() < 0.5 ? C.hilltop : C.hillDark);
+            band(t0 + HILL_TOP, t1 + HILL_TOP, t0 + HILL_TOP + HILL_BACK, t1 + HILL_TOP + HILL_BACK, a.rel, b.rel, -el0 + 0.03, -el1 + 0.03, C.hillDark);
+          }
+        }
       } else if (flyover) {
         // parapets, and side faces down to the girder's bottom (or to the ground on the low ramp)
         const el0 = t.elevation(s0);
@@ -219,8 +251,13 @@ export class RoadStreamer {
         }
       }
 
-      // Markings (half worn away on broken stretches)
-      if (!village && (!broken || rng() < 0.35) && !t.isJunction(sm)) {
+      // Markings (half worn away on broken stretches); the hill road has edge lines and a dashed centre line
+      if (hill) {
+        const y = top + 0.015;
+        sb.quad(s0, s1, -hw0 + 0.2, -hw0 + 0.35, -hw1 + 0.2, -hw1 + 0.35, y, y, y, y, C.white);
+        sb.quad(s0, s1, hw0 - 0.35, hw0 - 0.2, hw1 - 0.35, hw1 - 0.2, y, y, y, y, C.white);
+        if (Math.floor(s0 / step) % 2 === 0) sb.strip(s0, s1, -0.08, 0.08, y, C.yellow);
+      } else if (!village && (!broken || rng() < 0.35) && !t.isJunction(sm)) {
         const y = top + 0.015;
         // Edge lines
         sb.strip(s0, s1, -hw0 + 0.25, -hw0 + 0.45, y, C.white);

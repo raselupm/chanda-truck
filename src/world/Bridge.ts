@@ -62,7 +62,7 @@ export class Bridge extends SetPiece<TollEvent> {
     const waterLen = len + 260;
     this.water = this.own(new THREE.Mesh(
       new THREE.PlaneGeometry(1800, waterLen).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466 }[style], map: this.waterTex }),
+      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466, shahAmanat: 0x6a7f7a, meghnaGumti: 0x7a8466 }[style], map: this.waterTex }),
     ));
     this.water.position.set(0, 0.35, -(start + len / 2));
     this.group.add(this.water);
@@ -79,7 +79,9 @@ export class Bridge extends SetPiece<TollEvent> {
     // Piers + railings + lamps (merged: the bridge is straight at x = 0)
     const parts: Part[] = [];
     const slab = deckY - 1.9; // underside of the road slab
-    if (!padma) {
+    if (style === 'shahAmanat') this.shahAmanat(parts, start, len, deckY, slab, edge);
+    else if (style === 'meghnaGumti') this.meghnaGumti(parts, start, len, slab, edge);
+    else if (!padma) {
       // Concrete box-girder bridge on twin round piers every 50 m
       for (let s = start + 25; s < end - 10; s += 50) {
         for (const d of [-hw * 0.55, hw * 0.55]) parts.push({ geo: cyl(1.0, 1.2, slab + 2, 10), color: 0xb9b3a6, p: [d, (slab - 2) / 2, -s] });
@@ -186,6 +188,88 @@ export class Bridge extends SetPiece<TollEvent> {
     }
     this.group.add(this.boatMesh);
     this.updateBoats(0);
+  }
+
+  /**
+   * Shah Amanat Bridge (Karnaphuli): an extradosed prestressed concrete box girder. Three long main spans
+   * between two side spans (115 + 3 × 200 + 115 m, scaled), then a short approach viaduct. Four short pylons
+   * stand in the median, each with a single plane of stay cables fanning down to the middle of the deck.
+   */
+  private shahAmanat(parts: Part[], start: number, len: number, deckY: number, slab: number, edge: number): void {
+    const k = len / 950;
+    const main = [0, 115, 315, 515, 715, 830].map((u) => start + u * k);
+    const pylons = main.slice(1, 5);
+    const concrete = 0xc8c2b4;
+    // box girder: deeper at the pylons, shallower mid-span
+    for (let s = start; s < main[5]; s += 6) {
+      const near = Math.min(...main.map((p) => Math.abs(s + 3 - p)));
+      const depth = 2.2 + 2.6 * Math.max(0, 1 - near / (60 * k + 20));
+      parts.push({ geo: box(edge * 1.5, depth, 6.05), color: 0xb5ae9f, p: [0, slab - depth / 2, -(s + 3)] });
+    }
+    // wall piers under the pylons and the ends of the main bridge, round piers under the viaduct
+    for (const s of main) parts.push({ geo: box(edge * 1.2, slab, 4.5), color: concrete, p: [0, slab / 2 - 4.6, -s] });
+    for (let s = main[5] + 25; s < start + len - 5; s += 25) {
+      for (const d of [-edge * 0.4, edge * 0.4]) parts.push({ geo: cyl(0.9, 1.0, slab + 2, 10), color: 0xb9b3a6, p: [d, (slab - 2) / 2, -s] });
+    }
+    // the median the pylons stand in
+    parts.push({ geo: box(1.0, 0.8, len), color: 0xd8d2c4, p: [0, deckY + 0.4, -(start + len / 2)] });
+    // pylons and their cable fans (single plane, along the centre line)
+    const top = deckY + 18;
+    for (const p of pylons) {
+      parts.push({ geo: box(1.0, 12, 3.2), color: 0xe4ded2, p: [0, deckY + 6, -p] });
+      parts.push({ geo: box(0.9, 6.5, 2.4), color: 0xe4ded2, p: [0, deckY + 15, -p] });
+      for (let i = 0; i < 8; i++) {
+        const y0 = top - 1 - i * 1.1;
+        const reach = (78 - i * 7.5) * k + 6;
+        for (const dir of [-1, 1]) {
+          const dz = -dir * reach;
+          const dy = deckY + 0.9 - y0;
+          const L = Math.hypot(dy, dz);
+          parts.push({ geo: box(0.14, 0.14, L), color: 0xf2f2ee, p: [0, y0 + dy / 2, -p + dz / 2], r: [Math.atan2(-dy, dz), 0, 0] });
+        }
+      }
+    }
+    // keep our traffic left of the median
+    this.game.track.limits.push({ from: start - 2, to: start + len + 2, range: () => [-Infinity, -1.75] });
+  }
+
+  /**
+   * Meghna-Gumti Bridge: a long prestressed concrete box girder built by balanced cantilever (deep haunches
+   * over every wall pier, ~87 m spans), with its newer twin bridge running alongside.
+   */
+  private meghnaGumti(parts: Part[], start: number, len: number, slab: number, edge: number): void {
+    const span = 70;
+    const piers: number[] = [];
+    for (let s = start + span / 2; s < start + len - 10; s += span) piers.push(s);
+    const girder = (x: number, color: number) => {
+      for (let s = start; s < start + len; s += 5) {
+        const near = Math.min(...piers.map((p) => Math.abs(s + 2.5 - p)));
+        // parabolic haunch: 4.5 m deep over the piers, 2 m mid-span
+        const t = Math.min(1, near / (span / 2));
+        const depth = 2 + 2.5 * (1 - t) * (1 - t);
+        parts.push({ geo: box(edge * 1.4, depth, 5.05), color, p: [x, slab - depth / 2, -(s + 2.5)] });
+      }
+    };
+    girder(0, 0xb8b1a3);
+    for (const s of piers) {
+      parts.push({ geo: box(edge * 1.5, 1.2, 4), color: 0xaaa497, p: [0, slab - 5, -s] });
+      parts.push({ geo: box(edge * 1.1, slab - 4, 2.8), color: 0xc2bcae, p: [0, (slab - 4) / 2 - 1, -s] });
+    }
+    // the twin bridge alongside (steel box girder, its own piers), with its approach ramps
+    const track = this.game.track;
+    const tx = 2 * edge + 5;
+    const ramp = this.span.ramp;
+    for (let s = start - ramp * 0.6; s < start + len + ramp * 0.6; s += 10) {
+      const el = track.elevation(s + 5);
+      const y = el + ROAD.top;
+      parts.push({ geo: box(edge * 2, 0.6, 10.05), color: 0x8f8a80, p: [tx, y - 0.3, -(s + 5)] });
+      for (const side of [-1, 1]) parts.push({ geo: box(0.35, 0.9, 10.05), color: 0xd8d2c4, p: [tx + side * (edge - 0.2), y + 0.45, -(s + 5)] });
+      // solid approach where it is low, open river span where it is high
+      if (s + 5 < start || s + 5 > start + len) parts.push({ geo: box(edge * 2, y, 10.05), color: 0xa8a092, p: [tx, y / 2 - 0.6, -(s + 5)] });
+    }
+    for (let s = start; s < start + len; s += 5) parts.push({ geo: box(edge * 1.1, 2.2, 5.05), color: 0x6f7e8c, p: [tx, slab - 1.1, -(s + 2.5)] });
+    for (const s of piers) parts.push({ geo: box(edge * 1.1, slab - 2, 2.4), color: 0xc2bcae, p: [tx, (slab - 2) / 2 - 1, -s] });
+    track.propBlocks.push({ from: start - ramp, to: start + len + ramp, dMin: edge + 1, dMax: tx + edge + 6 });
   }
 
   get blocking(): boolean {

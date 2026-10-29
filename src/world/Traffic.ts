@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
-import { BROKEN_ROAD, CITY, ROAD, SHORTCUT, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
+import { BROKEN_ROAD, CITY, HILL, ROAD, SHORTCUT, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
 import { clamp, damp } from '../utils/math';
@@ -64,6 +64,7 @@ const MIX: Record<ZoneKind, [TrafficKind, number][]> = {
   town: [['bus', 0.25], ['truck', 0.2], ['car', 0.15], ['cng', 0.25], ['rickshaw', 0.15]],
   river: [['bus', 0.45], ['truck', 0.4], ['car', 0.15]],
   city: [['bus', 0.18], ['car', 0.22], ['cng', 0.28], ['rickshaw', 0.32]],
+  hill: [['bus', 0.3], ['truck', 0.3], ['car', 0.2], ['cng', 0.2]],
 };
 /** no buses or trucks on the village roads */
 const SHORTCUT_MIX: [TrafficKind, number][] = [['rickshaw', 0.4], ['cng', 0.35], ['bike', 0.25]];
@@ -349,7 +350,8 @@ export class Traffic {
       if (o.active && !o.road && o.dir === dir && Math.abs(o.d - d) < 3 && Math.abs(o.s - s) < 30) return;
     }
     this.activate(v, s, d, dir, null);
-    v.overtaker = dir === -1 && v.heavy && !outer && Math.random() < TRAFFIC.overtakerChance;
+    // (no overtaking on the hill road's blind bends)
+    v.overtaker = dir === -1 && v.heavy && !outer && zone !== 'hill' && Math.random() < TRAFFIC.overtakerChance;
   }
 
   /** A rickshaw, CNG or motorbike on a village shortcut, somewhere ahead of the truck. */
@@ -482,6 +484,7 @@ export class Traffic {
       } else {
         // follow the vehicle ahead in the same lane, bumper to bumper in a jam
         let target = v.cruise;
+        if (!v.road && g.track.isHill(v.s)) target = Math.min(target, HILL.trafficKmh / 3.6);
         if (!v.road && g.track.isBroken(v.s)) target = Math.min(target, BROKEN_ROAD.maxKmh / 3.6);
         lead = null;
         let leadGap = Infinity;
