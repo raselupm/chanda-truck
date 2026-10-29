@@ -659,7 +659,9 @@ export class Traffic {
     if (v.hitCooldown > 0) return;
 
     v.hitCooldown = 1.2;
-    g.stats.collisions++;
+    // on a village road a bump is just a bump: no lost cargo, no penalty, not counted
+    const village = !!v.road || (!!t.road && !t.road.inMouth(t.s));
+    if (!village) g.stats.collisions++;
     const truckKmh = t.kmh;
     const vehKmh = v.speed * 3.6 * v.dir;
     const pct = ECONOMY.cargoDamagePct;
@@ -667,7 +669,7 @@ export class Traffic {
     if (ovS < ovD) {
       // front/back impact
       const closing = v.dir === -1 ? Math.max(0, truckKmh) + v.speed * 3.6 : truckKmh - vehKmh;
-      if (v.dir === -1 && v.heavy && closing >= TRAFFIC.headOnGameOverKmh) {
+      if (!village && v.dir === -1 && v.heavy && closing >= TRAFFIC.headOnGameOverKmh) {
         g.cam.shake(2.5);
         g.sound.crash(1.2);
         g.gameOver('crash');
@@ -679,9 +681,9 @@ export class Traffic {
         g.sound.crash(clamp(closing / 80, 0.3, 1));
         t.speed = v.dir === 1 ? Math.max(0, v.speed * 0.6) : -1.5;
         t.clampFront(v.s - v.len / 2 - 0.2);
-        g.damageCargo(v.dir === -1 ? pct.headOnLight : clamp(closing * pct.rearEndPerKmh, 0.3, pct.rearEndMax), 'সংঘর্ষে মাল নষ্ট', 'মহাসড়ক');
+        if (!village) g.damageCargo(v.dir === -1 ? pct.headOnLight : clamp(closing * pct.rearEndPerKmh, 0.3, pct.rearEndMax), 'সংঘর্ষে মাল নষ্ট', 'মহাসড়ক');
         if (v.dir === -1 && !v.heavy) this.knockAside(v, t.d);
-        g.hud.toast('{crash} ধাক্কা! মাল পড়ে গেল');
+        g.hud.toast(village ? '{crash} ধাক্কা! সাবধানে চালান' : '{crash} ধাক্কা! মাল পড়ে গেল');
       }
     } else {
       // side swipe
@@ -690,7 +692,7 @@ export class Traffic {
       t.speed *= 0.85;
       g.cam.shake(0.5);
       g.sound.crash(0.25);
-      g.damageCargo(pct.sideSwipe, 'ঘষা লেগে মাল নষ্ট', 'মহাসড়ক');
+      if (!village) g.damageCargo(pct.sideSwipe, 'ঘষা লেগে মাল নষ্ট', 'মহাসড়ক');
       if (!v.heavy) this.knockAside(v, t.d);
       else v.targetD = v.d - push * 0.8;
     }
