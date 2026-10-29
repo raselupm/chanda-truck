@@ -39,6 +39,9 @@ export const ECONOMY = {
     headOnLight: 3,
   },
 
+  /** Speed camera in a slow zone (bazaar, school, market): base + this much per km/h over the limit. PLACEHOLDERS. */
+  speedFine: { base: 500, perKmhOver: 50 },
+
   ramSpeedKmh: 90,
   tollMaxSpeedKmh: 20,
   chaseRequiredSeconds: 10,

@@ -166,8 +166,8 @@ export class AdBoards {
     }
 
     // Along the driver's side of the highway, away from the set pieces
-    const market = route.events.find((e) => e.type === 'market')?.s ?? route.length;
-    for (let s = route.highwayStartS + 400; s < market - 400; s += ROADSIDE_EVERY) {
+    // (not in the city: the buildings stand right at the pavement there)
+    for (let s = route.highwayStartS + 400; s < route.cityStartS - 200; s += ROADSIDE_EVERY) {
       if (route.events.some((e) => Math.abs(e.s - s) < 150)) continue;
       tryAdd(s, -1);
     }

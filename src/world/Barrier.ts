@@ -5,9 +5,8 @@ import { ECONOMY } from '../config/economy';
 import type { BarrierEvent } from '../config/route';
 import { EVENTS, ROAD, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
-import type { ChargeLine } from '../ui/PaymentDialog';
+import type { ChargeLine } from '../game/Payment';
 import { box, buildColored, cached, cyl, vertexColorMaterial } from '../utils/geometry';
-import { formatTaka } from '../utils/bnNumber';
 import { signTexture } from '../utils/textures';
 import { makePerson, makeWaver } from './People';
 import { SetPiece } from './SetPiece';
@@ -215,9 +214,9 @@ export class Barrier extends SetPiece<BarrierEvent> {
     if (penalty) {
       lines.push({ category: 'PENALTY', amount: Math.round(this.base * (ECONOMY.penaltyMultiplierSlowHit - 1)), labelBn: 'বাঁশ ভাঙার "জরিমানা"' });
     }
-    g.requestPayment({
+    g.charge({
       kind: 'chanda',
-      titleBn: penalty ? 'জরিমানাসহ চাঁদা দিন!' : `চাঁদা দিন: ${formatTaka(this.base)}`,
+      titleBn: penalty ? 'জরিমানাসহ চাঁদা' : 'চাঁদা',
       messageBn: penalty ? MOCK_SLOW[Math.floor(Math.random() * MOCK_SLOW.length)] : PAY_LINES[Math.floor(Math.random() * PAY_LINES.length)],
       lines,
       locationBn: this.event.nameBn,

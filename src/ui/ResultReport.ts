@@ -21,7 +21,7 @@ export const CATEGORY_COLORS = {
 
 export const BREAKDOWN_LABELS: Record<keyof typeof CATEGORY_COLORS, string> = {
   purchaseDelivered: 'সবজি কেনা (পৌঁছানো মাল)',
-  legal: 'বৈধ টোল ও সড়ক কর',
+  legal: 'বৈধ টোল, সড়ক কর ও জরিমানা',
   chanda: 'চাঁদা',
   penalty: 'জরিমানা চাঁদা',
   cargoLoss: 'নষ্ট / হারানো মাল',

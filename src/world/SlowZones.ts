@@ -1,6 +1,6 @@
 // Speed-limited stretches: bazaars, schools and the market approach.
 // Signs + (for schools) a school building, playing kids behind a wall and a zebra crossing.
-// Only warns — speeding here costs nothing but your dignity.
+// Each zone has a speed camera: drive past it over the limit and the fine is taken automatically.
 
 import * as THREE from 'three';
 import type { SlowZone } from '../config/route';
@@ -62,10 +62,38 @@ function schoolGeometry(): THREE.BufferGeometry {
   );
 }
 
+/** Roadside pole with an arm out over the road edge and a camera facing the approaching traffic (+z). */
+function speedCamera(): { group: THREE.Group; lamp: THREE.MeshBasicMaterial } {
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(
+    cached('speedcam', () =>
+      buildColored([
+        { geo: cyl(0.1, 0.12, 5.4, 6), color: 0x8a8a8a, p: [0, 2.7, 0] },
+        { geo: box(1.8, 0.12, 0.12), color: 0x8a8a8a, p: [0.9, 5.2, 0] },
+        { geo: box(0.5, 0.42, 0.8), color: 0xe8e8e8, p: [1.6, 4.9, 0] },
+        { geo: box(0.3, 0.3, 0.06), color: 0x1d1d1d, p: [1.6, 4.88, 0.42] },
+        { geo: box(1.0, 0.7, 0.06), color: 0x1d3557, p: [0, 3.2, 0.12] },
+      ]),
+    ),
+    vertexColorMaterial(),
+  ));
+  // the flash
+  const lamp = new THREE.MeshBasicMaterial({ color: 0x444444 });
+  const flash = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.06), lamp);
+  flash.position.set(1.6, 5.2, 0.42);
+  group.add(flash);
+  return { group, lamp };
+}
+
 interface ZoneObj {
   zone: SlowZone;
   group: THREE.Group;
   kids: THREE.Mesh[];
+  /** where the camera checks the speed */
+  camS: number;
+  lamp: THREE.MeshBasicMaterial;
+  flash: number;
+  fined: boolean;
 }
 
 export class SlowZones {
@@ -74,6 +102,7 @@ export class SlowZones {
   private inside: SlowZone | null = null;
   private warnCooldown = 0;
   private t = 0;
+  private lastFront = -Infinity;
 
   constructor(private game: Game) {}
 
@@ -81,6 +110,7 @@ export class SlowZones {
     for (const z of this.zones) this.group.remove(z.group);
     this.zones = [];
     this.inside = null;
+    this.lastFront = -Infinity;
     const track = this.game.track;
     for (const zone of zones) {
       const g = new THREE.Group();
@@ -133,8 +163,17 @@ export class SlowZones {
         stripes.position.copy(at(mid, 0, ROAD.top + 0.02));
         g.add(stripes);
       }
+      // speed camera on the left, mid-zone (before the zebra crossing at a school), and a sign for it
+      const camS = zone.kind === 'school' ? (zone.from + zone.to) / 2 - 35 : (zone.from + zone.to) / 2;
+      const cam = speedCamera();
+      cam.group.position.copy(at(camS, -(hw + 2.4), ROAD.top));
+      g.add(cam.group);
+      const camSign = signPost(signTexture(['{camera} স্পিড ক্যামেরা', `সর্বোচ্চ ${toBnDigits(zone.limitKmh)} কিমি/ঘণ্টা`], { bg: '#1d3557', fg: '#ffffff', border: '#ffd23f', sizes: [52, 40] }), 2.8, 1.4, 2.2);
+      camSign.position.copy(at(zone.from - 15, -(hw + 3.2), ROAD.top));
+      camSign.rotation.y = 0.3;
+      g.add(camSign);
       this.group.add(g);
-      this.zones.push({ zone, group: g, kids });
+      this.zones.push({ zone, group: g, kids, camS, lamp: cam.lamp, flash: 0, fined: false });
     }
   }
 
@@ -153,6 +192,20 @@ export class SlowZones {
       if (tr.frontS >= z.zone.from && tr.frontS <= z.zone.to && !tr.road) now = z.zone;
       if (z.group.visible) for (const k of z.kids) k.position.y = Math.max(0, Math.sin(this.t * 6 + k.userData.phase)) * 0.35;
     }
+    // speed cameras: one fine per camera, when the truck's front passes it too fast
+    const front = tr.frontS;
+    for (const z of this.zones) {
+      if (z.flash > 0 && (z.flash -= dt) <= 0) z.lamp.color.set(0x444444);
+      const passing = this.lastFront < z.camS && front >= z.camS && front - this.lastFront < 10;
+      if (!passing || z.fined || g.state.phase !== 'HIGHWAY' || g.modal || tr.road) continue;
+      if (tr.kmh > z.zone.limitKmh + SLOW_ZONES.tolerance) {
+        z.fined = true;
+        z.flash = 0.25;
+        z.lamp.color.set(0xffffff);
+        g.speedFine(tr.kmh, z.zone.limitKmh, ZONE_INFO[z.zone.kind].enterBn.split(' — ')[0]);
+      }
+    }
+    this.lastFront = front;
     if (g.state.phase !== 'HIGHWAY') {
       this.inside = null;
       return;

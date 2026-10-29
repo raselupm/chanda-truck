@@ -1,12 +1,13 @@
 // Every taka that leaves the driver's pocket (or cargo taken in lieu of taka) is recorded here.
 // The HUD and the result report derive all their numbers from these entries.
 
-export type CostCategory = 'PURCHASE' | 'ROAD_TAX' | 'TOLL' | 'CHANDA' | 'PENALTY' | 'CARGO_LOSS';
+export type CostCategory = 'PURCHASE' | 'ROAD_TAX' | 'TOLL' | 'FINE' | 'CHANDA' | 'PENALTY' | 'CARGO_LOSS';
 
 export const CATEGORY_BN: Record<CostCategory, string> = {
   PURCHASE: 'সবজি কেনা',
   ROAD_TAX: 'সড়ক কর',
   TOLL: 'সেতু টোল',
+  FINE: 'ট্রাফিক জরিমানা',
   CHANDA: 'চাঁদা',
   PENALTY: 'জরিমানা চাঁদা',
   CARGO_LOSS: 'নষ্ট মাল',

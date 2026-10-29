@@ -6,7 +6,6 @@
 .icon-btn .ic { width: 22px; height: 22px; vertical-align: middle; }
 .tbtn .ic { width: 46%; height: 46%; }
 .p-icon .ic { width: 16px; height: 16px; }
-.pd-icon .ic { width: 44px; height: 44px; }
 .rot-icon .ic { width: 64px; height: 64px; }
 
 #boot {
@@ -171,27 +170,8 @@
   background: #2a1d13; color: var(--fg); box-shadow: 0 12px 40px rgba(0,0,0,.6); -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
-.pd-head { display: flex; gap: 12px; align-items: center; }
-.pd-icon { font-size: 40px; }
 .pd-title { font-size: clamp(20px, 3.4vw, 28px); font-weight: 700; line-height: 1.2; }
-.pd-loc { font-size: 13px; opacity: .8; }
-.pd-msg { margin: 10px 0; font-style: italic; font-size: clamp(14px, 2.2vw, 18px); }
-.pd-lines { width: 100%; border-collapse: collapse; font-size: clamp(14px, 2.2vw, 18px); }
-.pd-lines td { padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,.2); }
-.pd-lines .total td { font-weight: 700; font-size: 1.2em; border-bottom: 0; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pd-cash { margin-top: 6px; font-size: 14px; }
-.pd-inkind { margin-top: 8px; padding: 8px; border-radius: 8px; background: rgba(226,72,61,.2); font-size: 14px; }
-.pd-receipt { margin-top: 8px; font-size: 12px; opacity: .7; text-align: center; }
-.pay-dialog.chanda {
-  background: #f4ecd8; color: #2b1d12; border: 3px dashed #c1121f;
-  transform: rotate(-1deg); font-family: var(--font-bn);
-}
-.pay-dialog.chanda .pd-lines td { border-bottom-color: rgba(0,0,0,.2); }
-.pay-dialog.chanda .pd-title { color: #c1121f; }
-.pay-dialog.toll { background: #eef4fa; color: #13283d; border-top: 8px solid #1f7a3d; }
-.pay-dialog.toll .pd-lines td { border-bottom-color: rgba(0,0,0,.15); }
-.pay-dialog.toll .btn-pay { background: #1f7a3d; }
 
 /* buy panel */
 .buy-panel { width: min(720px, 96vw); background: #263319; }

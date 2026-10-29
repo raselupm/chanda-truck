@@ -58,7 +58,8 @@ export function computeResults(ledger: Ledger, cargo: Cargo, stats: RunStats, ou
   const purchase = ledger.sum({ categories: ['PURCHASE'] });
   const totalCash = ledger.cashSpent();
   const inKind = ledger.sum({ cash: false });
-  const legal = ledger.sum({ categories: ['TOLL', 'ROAD_TAX'] });
+  // legal: tolls, road tax and speed camera fines
+  const legal = ledger.sum({ categories: ['TOLL', 'ROAD_TAX', 'FINE'] });
   const chanda = ledger.sum({ categories: ['CHANDA'] });
   const penalty = ledger.sum({ categories: ['PENALTY'] });
   const cargoLoss = ledger.sum({ categories: ['CARGO_LOSS'] });

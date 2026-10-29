@@ -264,7 +264,7 @@ export class TollPlaza extends SetPiece<TollEvent> {
     this.dialogOpen = true;
     g.truck.stop();
     const isTax = this.event.type === 'roadTax';
-    g.requestPayment({
+    g.charge({
       kind: 'toll',
       titleBn: isTax ? 'সরকারি সড়ক কর' : this.event.nameBn,
       messageBn: isTax ? 'বৈধ কর — রশিদ দেওয়া হবে।' : 'বৈধ টোল — সরকারি রশিদসহ।',

@@ -8,13 +8,10 @@ import { DEFAULT_START_ID, generateRoute, START_POINTS, type FarmEvent, type Rou
 import { VEGETABLES, type VegId } from '../config/vegetables';
 import { player, submitRun } from '../net/leaderboard';
 import { BuyPanel } from '../ui/BuyPanel';
-import { ChandaDialog } from '../ui/ChandaDialog';
 import type { DebugOverlay } from '../ui/DebugOverlay';
 import { HUD } from '../ui/HUD';
 import { Menu, PauseMenu, rotateHint } from '../ui/Menu';
-import type { ChargePreview, PaymentRequest } from '../ui/PaymentDialog';
 import { ResultReport } from '../ui/ResultReport';
-import { TollDialog } from '../ui/TollDialog';
 import { TouchControls } from '../ui/TouchControls';
 import { formatKg, formatTaka, toBnDigits } from '../utils/bnNumber';
 import { CameraRig } from '../vehicle/CameraRig';
@@ -49,6 +46,7 @@ import { Cargo } from './Cargo';
 import { GameState } from './GameState';
 import { Input, NO_INPUT, type DriveInput } from './Input';
 import { Ledger } from './Ledger';
+import type { PaymentRequest } from './Payment';
 import { computeResults, type Outcome, type RunStats } from './Results';
 import { computeScore } from './Score';
 
@@ -94,8 +92,6 @@ export class Game {
 
   readonly hud: HUD;
   private buyPanel: BuyPanel;
-  private chandaDialog: ChandaDialog;
-  private tollDialog: TollDialog;
   private result: ResultReport;
   private menu: Menu;
   private pauseMenu: PauseMenu;
@@ -138,8 +134,6 @@ export class Game {
     this.hud = new HUD(uiRoot, this);
     this.touch = new TouchControls(uiRoot, this.input);
     this.buyPanel = new BuyPanel(uiRoot, this);
-    this.chandaDialog = new ChandaDialog(uiRoot);
-    this.tollDialog = new TollDialog(uiRoot);
     this.pauseMenu = new PauseMenu(uiRoot, {
       onResume: () => this.togglePause(),
       onRestart: () => this.start(this.startId),
@@ -155,10 +149,6 @@ export class Game {
     this.input.on('camera', () => this.toggleCamera());
     this.input.on('mute', () => this.sound.toggleMute());
     this.input.on('pause', () => this.togglePause());
-    this.input.on('confirm', () => {
-      if (this.chandaDialog.isOpen) this.chandaDialog.pay();
-      else if (this.tollDialog.isOpen) this.tollDialog.pay();
-    });
     this.weather.onThunder((delay) => this.sound.thunder(delay));
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && !this.state.paused) this.togglePause();
@@ -233,8 +223,6 @@ export class Game {
   }
 
   private closeOverlays(): void {
-    this.chandaDialog.hide();
-    this.tollDialog.hide();
     this.buyPanel.hide();
     this.pauseMenu.show(false);
     this.result.hide();
@@ -358,25 +346,17 @@ export class Game {
     this.truck.loadFrac = kg / ECONOMY.truckCapacityKg;
   }
 
-  private previewCharge(total: number): ChargePreview {
-    const cashPart = Math.min(this.cash, total);
-    const avg = this.cargo.avgPricePerKg();
-    const kgTaken = avg > 0 ? Math.min(this.cargo.totalKg, (total - cashPart) / avg) : 0;
-    return { total, cashPart, kgTaken, cashBefore: this.cash };
-  }
-
-  /** Open the right dialog; when the player pays, book it in the ledger. */
-  requestPayment(req: PaymentRequest): void {
-    this.modal = true;
-    this.truck.stop();
-    this.sound.horn(false);
+  /** Chanda, a toll or a fine: taken right away (cash first, then cargo) and booked in the ledger. */
+  charge(req: PaymentRequest): void {
     const total = req.lines.reduce((a, l) => a + l.amount, 0);
-    const dialog = req.kind === 'chanda' ? this.chandaDialog : this.tollDialog;
-    dialog.show(req, this.previewCharge(total), () => {
-      this.settle(req);
-      this.modal = false;
-      req.onPaid?.();
-    });
+    this.settle(req);
+    this.hud.warn(
+      req.kind === 'chanda' ? `{hand} ${req.titleBn} ${formatTaka(total)} কেটে নিল` : `{receipt} ${req.titleBn} ${formatTaka(total)} পরিশোধ`,
+      req.kind === 'chanda' ? 'danger' : 'info',
+      3,
+    );
+    if (req.messageBn) this.hud.toast(req.messageBn, 3);
+    req.onPaid?.();
   }
 
   private settle(req: PaymentRequest): void {
@@ -406,11 +386,28 @@ export class Game {
     const delta = perKgAfter - perKgBefore;
     if (delta > 0.005) {
       this.hud.floatText(
-        req.kind === 'chanda' ? `+${formatTaka(delta, 2)} প্রতি কেজি দাম বাড়লো` : `+${formatTaka(delta, 2)}/কেজি (বৈধ টোল)`,
+        req.kind === 'chanda'
+          ? `+${formatTaka(delta, 2)} প্রতি কেজি দাম বাড়লো`
+          : `+${formatTaka(delta, 2)}/কেজি (${req.lines[0]?.category === 'FINE' ? 'জরিমানা' : 'বৈধ টোল'})`,
         req.kind === 'chanda' ? 'bad' : 'legal',
       );
     }
     if (kgTaken > 0) this.hud.toast(`{cabbage} নগদ শেষ — ${formatKg(kgTaken)} মাল নামিয়ে নিল`, 3.5);
+  }
+
+  /** A speed camera caught the truck: the fine is taken right away (cash first, then cargo), no dialog. */
+  speedFine(kmh: number, limitKmh: number, locationBn: string): void {
+    const f = ECONOMY.speedFine;
+    const amount = f.base + f.perKmhOver * Math.round(kmh - limitKmh);
+    this.settle({
+      kind: 'toll',
+      titleBn: 'স্পিড ক্যামেরা',
+      messageBn: '',
+      lines: [{ category: 'FINE', amount, labelBn: `গতিসীমা ${toBnDigits(limitKmh)}, চলছিল ${toBnDigits(Math.round(kmh))} কিমি/ঘণ্টা` }],
+      locationBn,
+    });
+    this.sound.beep();
+    this.hud.warn(`{camera} স্পিড ক্যামেরা! ${toBnDigits(Math.round(kmh))} কিমি/ঘণ্টা — জরিমানা ${formatTaka(amount)}`, 'danger', 3.5);
   }
 
   damageCargo(pct: number, labelBn: string, locationBn: string): void {

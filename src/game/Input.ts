@@ -2,7 +2,7 @@
 
 import { TRUCK } from '../config/tuning';
 
-export type InputAction = 'horn' | 'camera' | 'mute' | 'pause' | 'confirm';
+export type InputAction = 'horn' | 'camera' | 'mute' | 'pause';
 
 export interface DriveInput {
   throttle: number;
@@ -37,7 +37,6 @@ export class Input implements DriveInput {
         if (e.code === 'KeyC') this.emit('camera');
         if (e.code === 'KeyM') this.emit('mute');
         if (e.code === 'KeyP' || e.code === 'Escape') this.emit('pause');
-        if (e.code === 'Enter' || e.code === 'NumpadEnter') this.emit('confirm');
       }
       this.keys.add(e.code);
     });

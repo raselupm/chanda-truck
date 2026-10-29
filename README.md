@@ -34,7 +34,6 @@ Requires Node 18+.
 | Camera (chase / cockpit) | C | 🎥 |
 | Mute | M | 🔊 |
 | Pause | P / Esc | ⏸ |
-| Pay in a dialog | Enter | button |
 | Debug overlay (fps, draw calls) | F3 | add `?debug` to the URL |
 
 Phones are played in **portrait**: steering buttons bottom-left, pedals bottom-right, speedometer in
@@ -64,6 +63,7 @@ All numbers live in `src/config/`:
   - `penaltyMultiplierSlowHit` (1.5×) and `caughtMultiplier` (2×). The base amount is booked as CHANDA,
     the extra as PENALTY.
   - `fees.roadTax`, `fees.jamunaToll`, `fees.padmaToll`
+  - `speedFine` (base + per km/h over the limit, speed cameras in slow zones)
   - `cargoDamagePct.*`, `ramSpeedKmh` (90), `tollMaxSpeedKmh` (20), `chaseRequiredSeconds` (10)
   - `chaseMeterMode`: `'reset'` (default: dropping below 90 resets the meter) or `'pause'`
 - **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর). Each has an ordered list of legal toll
@@ -90,8 +90,11 @@ All numbers live in `src/config/`:
 - **Pedestrians:** they open umbrellas when it rains and carry flashlights after dark.
 - **Slow zones** (`SLOW_ZONES` in `tuning.ts`): every bazaar (40 km/h), 2–3 random schools (30 km/h) and
   the Karwan Bazar approach (30 km/h). Each has signs, and schools also get a school building, kids
-  playing behind a wall and a zebra crossing. Speeding there shows a HUD limit badge and a funny warning,
-  but no penalty.
+  playing behind a wall and a zebra crossing. Speeding there shows a HUD limit badge and a funny warning.
+  Each zone also has a **speed camera** (with a "স্পিড ক্যামেরা" sign at the entrance): pass it more
+  than 5 km/h over the limit and it flashes and fines you automatically, cash first, then cargo, with no
+  dialog. The fine is ৳500 + ৳50 per km/h over (`speedFine` in `economy.ts`). It's a legal traffic fine
+  (`FINE` in the ledger), so the result report counts it with tolls and road tax, not with chanda.
 
 ## Bridges
 
@@ -171,7 +174,7 @@ src/
   world/                  Track (road maths), RoadStreamer, Scenery, Environment, Traffic,
                           Farm, Barrier, TollPlaza, Bridge, City (market), People, Props, VehicleModels
   vehicle/                Truck (model), TruckController (physics), CameraRig, Chasers
-  ui/                     HUD, ChaseMeter, BuyPanel, Chanda/Toll dialogs, ResultReport,
+  ui/                     HUD, ChaseMeter, BuyPanel, ResultReport,
                           ShareImage, TouchControls, Menu, DebugOverlay
   audio/Sound.ts          synthesised sound effects
   utils/                  Bengali numbers (bnNumber.ts), geometry/texture helpers, rng, math

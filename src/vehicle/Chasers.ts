@@ -200,9 +200,9 @@ export class Chasers {
       u.speed = 0;
     });
     g.damageCargo(ECONOMY.cargoDamagePct.caught, 'ধরা পড়ার পর মাল "জব্দ"', this.locationBn);
-    g.requestPayment({
+    g.charge({
       kind: 'chanda',
-      titleBn: 'ধরা পড়েছেন! জরিমানা চাঁদা',
+      titleBn: 'ধরা পড়েছেন! জরিমানাসহ চাঁদা',
       messageBn: reason === 'event' ? 'সামনে লাইনে আটকে গেলেন — ধরা খেলেন!' : CAUGHT_LINES[Math.floor(Math.random() * CAUGHT_LINES.length)],
       lines: [
         { category: 'CHANDA', amount: this.base, labelBn: 'বকেয়া চাঁদা' },

@@ -251,6 +251,8 @@ export class Scenery {
         break;
       }
       case 'city': {
+        // a billboard needs a gap in the row of buildings on its side, or half of it sits inside one
+        const bbSide = rng() < 0.35 ? (rng() < 0.5 ? -1 : 1) : 0;
         for (const side of [-1, 1]) {
           this.place(out, 'pavement', sMid, side * (edge + 2.5), 0, 5, 1, L, 0xa8a196);
           let s = s0 + rng() * 4;
@@ -258,7 +260,9 @@ export class Scenery {
             const w = range(rng, 10, 16);
             const h = range(rng, 12, 34);
             const dep = range(rng, 10, 16);
-            this.place(out, 'building', s + w / 2, side * (edge + 6 + dep / 2), 0, dep, h, w, pick(rng, BUILDING_COLORS));
+            if (side !== bbSide || s + w < sMid - 9 || s > sMid + 9) {
+              this.place(out, 'building', s + w / 2, side * (edge + 6 + dep / 2), 0, dep, h, w, pick(rng, BUILDING_COLORS));
+            }
             s += w + range(rng, 1, 4);
           }
           for (let k = 0; k < 2; k++) {
@@ -267,7 +271,7 @@ export class Scenery {
           }
         }
         if (c % 2 === 0) this.place(out, 'pole', s0 + 5, -(edge + 0.8), 0);
-        if (rng() < 0.35) billboard(edge + 3.5);
+        if (bbSide) bb.push({ s: sMid, d: bbSide * (edge + 3.5 + BB_PAD), side: bbSide, idx: c * 7 });
         break;
       }
     }
