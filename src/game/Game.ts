@@ -262,6 +262,7 @@ export class Game {
     this.truck.maxFrontS = this.route.highwayStartS - 25;
     this.truck.loadFrac = 0;
     this.truckModel.setCrates([]);
+    this.truckModel.shuffleRearAd();
     this.cam.snap(this.truck);
 
     this.state.force('FARM');

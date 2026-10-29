@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { WORLD } from '../config/tuning';
 import { blobShadow, box, buildColored, cone, cyl, vertexColorMaterial, type Part } from '../utils/geometry';
 import { truckArtTexture } from '../utils/textures';
+import { adMaterials } from '../world/AdBoards';
 import { EYE } from './Cockpit';
 
 const CRATE_COLS = 3;
@@ -24,6 +25,9 @@ export class Truck {
   private produce: THREE.InstancedMesh;
   private tassels: THREE.Mesh;
   private wheelSpin = 0;
+  /** the tailboard panel: truck art, or an ad from the ads/ folder (see shuffleRearAd) */
+  private back: THREE.Mesh;
+  private backArt: THREE.Material;
 
   constructor() {
     this.root.add(this.body);
@@ -80,7 +84,8 @@ export class Truck {
     const right = new THREE.Mesh(sideGeo, sideMat);
     right.position.set(1.28, 2.1, 1.25);
     right.rotation.y = Math.PI / 2;
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 1.4), new THREE.MeshLambertMaterial({ map: truckArtTexture('back') }));
+    this.backArt = new THREE.MeshLambertMaterial({ map: truckArtTexture('back') });
+    const back = (this.back = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 1.4), this.backArt));
     back.position.set(0, 2.1, 4.04);
     const front = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshLambertMaterial({ map: truckArtTexture('front') }));
     front.position.set(0, 3.45, -3.62);
@@ -179,6 +184,12 @@ export class Truck {
   }
 
   private cabExtras: THREE.Object3D[];
+
+  /** Half the runs the tailboard carries a random ad instead of the truck art. */
+  shuffleRearAd(): void {
+    const ads = adMaterials();
+    this.back.material = ads.length && Math.random() < 0.5 ? ads[Math.floor(Math.random() * ads.length)] : this.backArt;
+  }
 
   setCrates(colors: number[]): void {
     const m = new THREE.Matrix4();

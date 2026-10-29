@@ -6,6 +6,7 @@ import { BROKEN_ROAD, CITY, ROAD, TRAFFIC, TRUCK, WORLD } from '../config/tuning
 import type { Game } from '../game/Game';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
 import { clamp, damp } from '../utils/math';
+import { adMaterials } from './AdBoards';
 import { rearMaterials, sideMaterials, stickerMaterials } from './VehicleArt';
 import { VEHICLE_DIMS, vehicleGeometry, type TrafficKind } from './VehicleModels';
 import type { ZoneKind } from './Track';
@@ -161,7 +162,9 @@ export class Traffic {
   /** Give a freshly spawned vehicle random writing. */
   private paint(v: Vehicle): void {
     const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
-    if (v.rear) v.rear.material = v.kind === 'car' ? pick(stickerMaterials()) : pick(rearMaterials());
+    // half the trucks carry an ad from the ads/ folder on the tailboard (same shape as the panel)
+    const ads = adMaterials();
+    if (v.rear) v.rear.material = v.kind === 'car' ? pick(stickerMaterials()) : v.kind === 'truck' && ads.length && Math.random() < 0.5 ? pick(ads) : pick(rearMaterials());
     const name = pick(sideMaterials());
     for (const m of v.sides) m.material = name;
   }
