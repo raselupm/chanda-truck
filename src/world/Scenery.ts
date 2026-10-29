@@ -5,14 +5,19 @@ import { ROAD } from '../config/tuning';
 import { vertexColorMaterial } from '../utils/geometry';
 import { hash2, mulberry32, pick, range, type Rng } from '../utils/rng';
 import { windowTexture } from '../utils/textures';
-import { adMaterials, shuffle } from './AdBoards';
+import { adBoard, adMaterials, PANEL_W, shuffle } from './AdBoards';
 import { propGeometry, type PropKind } from './Props';
 import type { Track } from './Track';
 
 const CAPACITY: Record<PropKind, number> = {
   banana: 500, roundTree: 500, palm: 300, bamboo: 250, hut: 120, teaStall: 80, shop: 260, pole: 120,
-  haystack: 120, paddy: 500, pond: 60, building: 400, pavement: 200, shrub: 400, billboardFrame: 24, crate: 1,
+  haystack: 120, paddy: 500, pond: 60, building: 400, pavement: 200, shrub: 400, crate: 1,
 };
+
+/** how many scenery billboards can be on screen at once */
+const BILLBOARDS = 24;
+/** extra distance from the road so the full-size panel (angled toward the road) clears the shoulder */
+const BB_PAD = PANEL_W / 2 - 3;
 
 const PADDY_COLORS = [0x7fb23a, 0x8cbf3f, 0x6fa333, 0xa8c04a, 0x94b83d, 0xc2b85a];
 const SHOP_COLORS = [0xf2e6c9, 0xe8c9a0, 0xb5d3e7, 0xf4b6a6, 0xd5e8b5, 0xf6e27f];
@@ -28,8 +33,8 @@ export class Scenery {
   readonly group = new THREE.Group();
   private meshes = new Map<PropKind, THREE.InstancedMesh>();
   private billboards: THREE.Object3D[] = [];
-  /** the small billboards show the ads from the ads/ folder (one material per ad), reshuffled every run */
-  private adMats = adMaterials(6, 3, 512);
+  /** the billboards show the ads from the ads/ folder (same size and materials as AdBoards), reshuffled every run */
+  private adMats = adMaterials();
   private adPanels: THREE.Mesh[] = [];
   private tmpQ = new THREE.Quaternion();
   private tmpE = new THREE.Euler();
@@ -40,7 +45,7 @@ export class Scenery {
   constructor(private track: Track) {
     const buildingMat = new THREE.MeshLambertMaterial({ map: windowTexture() });
     for (const kind of Object.keys(CAPACITY) as PropKind[]) {
-      if (kind === 'crate' || kind === 'billboardFrame') continue;
+      if (kind === 'crate') continue;
       const mat = kind === 'building' ? buildingMat : vertexColorMaterial();
       const mesh = new THREE.InstancedMesh(propGeometry(kind), mat, CAPACITY[kind]);
       mesh.count = 0;
@@ -49,17 +54,12 @@ export class Scenery {
       this.meshes.set(kind, mesh);
       this.group.add(mesh);
     }
-    const boardGeo = new THREE.PlaneGeometry(6, 3);
-    for (let i = 0; this.adMats.length && i < CAPACITY.billboardFrame; i++) {
-      const board = new THREE.Mesh(boardGeo, this.adMats[0]);
-      board.position.set(0, 4.6, 0.22);
-      this.adPanels.push(board);
-      const holder = new THREE.Group();
-      holder.add(new THREE.Mesh(propGeometry('billboardFrame'), vertexColorMaterial()));
-      holder.add(board);
-      holder.visible = false;
-      this.billboards.push(holder);
-      this.group.add(holder);
+    for (let i = 0; this.adMats.length && i < BILLBOARDS; i++) {
+      const { board, panel } = adBoard(this.adMats[0]);
+      this.adPanels.push(panel);
+      board.visible = false;
+      this.billboards.push(board);
+      this.group.add(board);
     }
     this.shuffleAds();
   }
@@ -69,7 +69,7 @@ export class Scenery {
     this.shuffleAds();
   }
 
-  /** Give every small billboard a random ad, dealt from a shuffled deck so nearby boards tend to differ. */
+  /** Give every billboard a random ad, dealt from a shuffled deck so nearby boards tend to differ. */
   private shuffleAds(): void {
     let deck: THREE.MeshLambertMaterial[] = [];
     for (const panel of this.adPanels) {
@@ -154,7 +154,7 @@ export class Scenery {
     // Billboards on either side, angled toward the approaching truck
     const billboard = (dist: number) => {
       const side = rng() < 0.5 ? -1 : 1;
-      bb.push({ s: s0 + L / 2, d: side * dist, side, idx: c * 7 });
+      bb.push({ s: s0 + L / 2, d: side * (dist + BB_PAD), side, idx: c * 7 });
     };
 
     const paddies = (n: number, dMin: number) => {

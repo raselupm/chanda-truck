@@ -1,5 +1,5 @@
 // Big roadside billboards showing real ads: every image in the project's ads/ folder (drop a file in, it
-// appears in the game, here and on the small roadside billboards in Scenery). Each board picks an ad at random every run. They stand at the start field, along
+// appears in the game, here and on the other roadside billboards in Scenery). Each board picks an ad at random every run. They stand at the start field, along
 // the driver's side of the highway, and where the truck has to wait: toll plazas and rail crossings.
 
 import * as THREE from 'three';
@@ -13,7 +13,7 @@ export const AD_URLS: string[] = Object.values(
 );
 
 /** ad panel size in metres (wide, like a highway hoarding) */
-const PANEL_W = 12;
+export const PANEL_W = 12;
 const PANEL_H = 6.5;
 const PANEL_Y = 7.6;
 /** one roadside board every this many metres along the highway */
@@ -59,17 +59,33 @@ function loadAd(url: string, mat: THREE.MeshLambertMaterial, texW: number, texH:
   img.src = url;
 }
 
+let sharedMats: THREE.MeshLambertMaterial[] | null = null;
+
 /**
- * One material per ad for a panel of the given size (metres), a little self-lit so the ad stays readable at
- * dusk and at night. The texture is 1024 px wide (512 for small panels) and shaped like the panel.
+ * One material per ad, a little self-lit so the ad stays readable at dusk and at night. The texture is 1024 px
+ * wide and shaped like the panel. Shared by these boards and the roadside billboards in Scenery.
  */
-export function adMaterials(panelW: number, panelH: number, texW = 1024): THREE.MeshLambertMaterial[] {
-  const texH = Math.round((texW * panelH) / panelW);
-  return AD_URLS.map((url) => {
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.35 });
-    loadAd(url, mat, texW, texH);
-    return mat;
-  });
+export function adMaterials(): THREE.MeshLambertMaterial[] {
+  if (!sharedMats) {
+    const texW = 1024;
+    const texH = Math.round((texW * PANEL_H) / PANEL_W);
+    sharedMats = AD_URLS.map((url) => {
+      const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.35 });
+      loadAd(url, mat, texW, texH);
+      return mat;
+    });
+  }
+  return sharedMats;
+}
+
+/** A full-size hoarding (frame + ad panel) standing at the origin, facing +z. */
+export function adBoard(mat: THREE.Material): { board: THREE.Group; panel: THREE.Mesh } {
+  const board = new THREE.Group();
+  board.add(new THREE.Mesh(frameGeometry(), vertexColorMaterial()));
+  const panel = new THREE.Mesh(cached('adboard:panel', () => new THREE.PlaneGeometry(PANEL_W, PANEL_H)), mat);
+  panel.position.set(0, PANEL_Y, 0.16);
+  board.add(panel);
+  return { board, panel };
 }
 
 interface Slot {
@@ -82,7 +98,7 @@ interface Slot {
 export class AdBoards {
   readonly group = new THREE.Group();
   /** one material per ad, shared by every board showing it */
-  private mats = adMaterials(PANEL_W, PANEL_H);
+  private mats = adMaterials();
   private boards: THREE.Group[] = [];
 
   get count(): number {
@@ -105,11 +121,7 @@ export class AdBoards {
   }
 
   private add(slot: Slot, mat: THREE.MeshLambertMaterial, track: Track): void {
-    const board = new THREE.Group();
-    board.add(new THREE.Mesh(frameGeometry(), vertexColorMaterial()));
-    const panel = new THREE.Mesh(cached('adboard:panel', () => new THREE.PlaneGeometry(PANEL_W, PANEL_H)), mat);
-    panel.position.set(0, PANEL_Y, 0.16);
-    board.add(panel);
+    const { board } = adBoard(mat);
     board.position.set(track.centerX(slot.s) + slot.d, 0, -slot.s);
     // face the approaching truck, turned a little toward the road
     board.rotation.y = -slot.side * 0.3;

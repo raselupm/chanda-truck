@@ -5,7 +5,7 @@ import { box, buildColored, cached, cone, cyl, ico, type Part } from '../utils/g
 
 export type PropKind =
   | 'banana' | 'roundTree' | 'palm' | 'bamboo' | 'hut' | 'teaStall' | 'shop' | 'pole'
-  | 'haystack' | 'paddy' | 'pond' | 'building' | 'pavement' | 'shrub' | 'billboardFrame' | 'crate';
+  | 'haystack' | 'paddy' | 'pond' | 'building' | 'pavement' | 'shrub' | 'crate';
 
 export function propGeometry(kind: PropKind): THREE.BufferGeometry {
   return cached(`prop:${kind}`, () => {
@@ -100,12 +100,6 @@ export function propGeometry(kind: PropKind): THREE.BufferGeometry {
         return buildColored([{ geo: box(1, 0.3, 1), color: 0xffffff, p: [0, 0.1, 0] }]);
       case 'shrub':
         return buildColored([{ geo: ico(0.8), color: 0x4f8132, p: [0, 0.5, 0], s: [1.3, 0.8, 1.1] }]);
-      case 'billboardFrame':
-        return buildColored([
-          { geo: box(0.2, 6, 0.2), color: 0x555555, p: [-2.6, 3, 0.1] },
-          { geo: box(0.2, 6, 0.2), color: 0x555555, p: [2.6, 3, 0.1] },
-          { geo: box(6.4, 3.4, 0.15), color: 0x333333, p: [0, 4.6, 0.12] },
-        ]);
       case 'crate':
         return buildColored([
           { geo: box(0.7, 0.45, 0.5), color: 0x8a6238, p: [0, 0.225, 0] },
