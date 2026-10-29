@@ -1,7 +1,7 @@
 // Streams road chunks ahead of the truck and recycles the ones behind.
 
 import * as THREE from 'three';
-import { ROAD } from '../config/tuning';
+import { ROAD, SHORTCUT } from '../config/tuning';
 import { hash2, mulberry32 } from '../utils/rng';
 import type { Track } from './Track';
 
@@ -21,9 +21,16 @@ const C = {
   gravel: new THREE.Color(0x7a6e5e),
   pothole: new THREE.Color(0x2b2622),
   puddle: new THREE.Color(0x4f4434),
+  // flyover over a village shortcut
+  concrete: new THREE.Color(0xbdb6a8),
+  parapetTop: new THREE.Color(0xd8d2c4),
 };
 
-class StripBuilder {
+const PARAPET_H = 0.9;
+const PARAPET_W = 0.3;
+
+/** Builds road quads along any centreline that is a function of s (the highway, a village shortcut). */
+export class StripBuilder {
   pos: number[] = [];
   col: number[] = [];
   private a = new THREE.Vector3();
@@ -31,7 +38,7 @@ class StripBuilder {
   private c = new THREE.Vector3();
   private d = new THREE.Vector3();
 
-  constructor(private track: Track) {}
+  constructor(private track: Pick<Track, 'centerX' | 'elevation'>) {}
 
   /** Quad between (s0,d0)-(s0,d1)-(s1,d1)-(s1,d0); y given relative to elevation unless abs is set. */
   quad(
@@ -135,6 +142,7 @@ export class RoadStreamer {
       const hw1 = t.halfWidth(s1);
       const village = t.isVillage(sm);
       const bridge = t.bridgeAt(sm);
+      const flyover = !bridge && t.isFlyover(sm);
       const sh = bridge ? 1.0 : ROAD.shoulder;
 
       // Surface with a little colour noise (patches, wear)
@@ -158,7 +166,7 @@ export class RoadStreamer {
       }
 
       // Shoulders
-      const shColor = village ? C.dirtDark : bridge ? C.bridgeSide : C.shoulder;
+      const shColor = village ? C.dirtDark : bridge || flyover ? C.bridgeSide : C.shoulder;
       sb.quad(s0, s1, -hw0 - sh, -hw0, -hw1 - sh, -hw1, top - 0.02, top - 0.02, top - 0.02, top - 0.02, shColor);
       sb.quad(s0, s1, hw0, hw0 + sh, hw1, hw1 + sh, top - 0.02, top - 0.02, top - 0.02, top - 0.02, shColor);
 
@@ -170,6 +178,27 @@ export class RoadStreamer {
           sb.quad(s0, s1, e0, e0, e1, e1, top, top - depth, top, top - depth, C.bridgeSide);
         }
         sb.quad(s0, s1, -hw0 - sh, hw0 + sh, -hw1 - sh, hw1 + sh, top - depth, top - depth, top - depth, top - depth, C.bridgeUnder);
+      } else if (flyover) {
+        // parapets, and side faces down to the girder's bottom (or to the ground on the low ramp)
+        const el0 = t.elevation(s0);
+        const el1 = t.elevation(s1);
+        const bot0 = Math.max(-el0 + 0.02, -SHORTCUT.girder);
+        const bot1 = Math.max(-el1 + 0.02, -SHORTCUT.girder);
+        const pt = top + PARAPET_H;
+        for (const side of [-1, 1]) {
+          const a0 = side * (hw0 + sh);
+          const a1 = side * (hw1 + sh);
+          const b0 = side * (hw0 + sh + PARAPET_W);
+          const b1 = side * (hw1 + sh + PARAPET_W);
+          sb.quad(s0, s1, a0, a0, a1, a1, pt, top - 0.02, pt, top - 0.02, C.concrete);
+          sb.quad(s0, s1, a0, b0, a1, b1, pt, pt, pt, pt, C.parapetTop);
+          sb.quad(s0, s1, b0, b0, b1, b1, pt, bot0, pt, bot1, C.concrete);
+        }
+        if (bot0 === -SHORTCUT.girder || bot1 === -SHORTCUT.girder) {
+          const w0 = hw0 + sh + PARAPET_W;
+          const w1 = hw1 + sh + PARAPET_W;
+          sb.quad(s0, s1, -w0, w0, -w1, w1, bot0, bot0, bot1, bot1, C.bridgeUnder);
+        }
       } else {
         // Embankment down to the surrounding ground
         const el0 = t.elevation(s0);

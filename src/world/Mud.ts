@@ -3,7 +3,7 @@
 // or drive off without them and lose. The tyres leave mud prints on the grass, and for a moment on the road.
 
 import * as THREE from 'three';
-import { MUD, ROAD, TRUCK } from '../config/tuning';
+import { MUD, ROAD, SHORTCUT, TRUCK } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { canvasTexture } from '../utils/textures';
 import { makePerson } from './People';
@@ -269,9 +269,14 @@ export class Mud {
   /** Height of the ground at (s, d): road, shoulder, the embankment down to the fields. */
   private groundY(s: number, d: number): number {
     const tr = this.game.track;
-    const el = tr.elevation(s);
+    // beside a village shortcut: measure from that road instead
+    const sc = tr.shortcutAt(s);
+    const near = sc && Math.abs(d - sc.offset(s)) < Math.abs(d) ? sc : null;
+    const el = near ? near.elevation(s) : tr.elevation(s);
     const roadY = el + ROAD.top;
-    const out = Math.abs(d) - (tr.halfWidth(s) + ROAD.shoulder);
+    const out = near
+      ? Math.abs(d - near.offset(s)) - (near.halfWidth(s) + SHORTCUT.shoulder)
+      : Math.abs(d) - (tr.halfWidth(s) + ROAD.shoulder);
     if (out <= 0) return roadY;
     const k = Math.min(1, out / (1.2 + el * 1.3));
     return roadY + (0.02 - roadY) * k;

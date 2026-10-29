@@ -143,7 +143,7 @@ export class AdBoards {
     const off = (s: number) => track.halfWidth(s) + ROAD.shoulder + 1.5 + PANEL_W / 2;
     /** clear ground: not on the river, a bridge ramp or anything a set piece has reserved */
     const free = (s: number, d: number) =>
-      !track.isRiver(s, 120) && track.elevation(s) < 1 && !track.isBlocked(s, d) && !track.isBlocked(s, d - Math.sign(d) * PANEL_W * 0.45);
+      !track.isRiver(s, 120) && track.elevation(s) < 1 && !track.nearFlyover(s) && !track.isBlocked(s, d) && !track.isBlocked(s, d - Math.sign(d) * PANEL_W * 0.45);
     const tryAdd = (s: number, side: -1 | 1, extra = 0) => {
       for (const shift of [0, 15, -15, 30, -30]) {
         const ss = s + shift;

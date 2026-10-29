@@ -86,6 +86,51 @@ export const ROAD = {
   bendMinRadius: 330,
 } as const;
 
+/**
+ * Village shortcuts: a 2-lane road that forks off to the left of the highway before a chanda barrier, winds
+ * through the paddy fields and rejoins the highway past the barrier, always from the left. A left one stays
+ * on the left; a right one passes under the highway soon after the fork (the highway climbs over it on a
+ * flyover), runs along the right side past the barrier, then passes under it again to rejoin from the left.
+ * Only rickshaws, CNGs and motorbikes use it. Distances are metres along the route (s).
+ */
+export const SHORTCUT = {
+  perRoute: 2,
+  /** chance a shortcut runs on the right side (under the highway's flyover) */
+  rightChance: 0.5,
+  /** fork this far before the barrier (further when it crosses the highway first), rejoin this far after it */
+  forkBefore: 950,
+  forkBeforeFlyover: 1400,
+  joinAfter: 1100,
+  joinAfterFlyover: 1270,
+  /** a right one passes under the highway's flyovers this far past the fork, and this far past the barrier */
+  crossAfterFork: 700,
+  crossBackAfter: 550,
+  /** speed limit on the village road */
+  maxKmh: 70,
+  /** how far beside the highway the village road runs (centre to centre) */
+  sideOffset: 80,
+  /** length of the bend off the highway (and back onto it) */
+  forkLength: 450,
+  /** length of the S-bend that takes it across the highway */
+  crossLength: 440,
+  /** 2 lanes; width across the road, not along x */
+  halfWidth: 3.4,
+  shoulder: 1,
+  /** how far off the road the truck may wander (into the paddy, and the mud) */
+  verge: 5,
+  /** the extra bends on the long stretch beside the highway */
+  wiggleAmp: 12,
+  wiggleLength: 230,
+  /** the highway's flyover: deck height, flat top either side of the crossing, ramp length */
+  deck: 8.5,
+  deckFlat: 50,
+  ramp: 170,
+  /** girder depth under the deck */
+  girder: 1.6,
+  /** vehicles wanted ahead on the shortcut (same direction / oncoming) */
+  traffic: [4, 4] as [number, number],
+} as const;
+
 export const EVENTS = {
   barrierWarnDistance: 400,
   tollWarnDistance: 500,

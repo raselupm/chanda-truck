@@ -1,8 +1,9 @@
 // Arcade kinematic truck physics expressed in road coordinates (s along the road, d across it).
 
-import { BROKEN_ROAD, TRUCK, WORLD } from '../config/tuning';
+import { BROKEN_ROAD, SHORTCUT, TRUCK, WORLD } from '../config/tuning';
 import type { DriveInput } from '../game/Input';
 import { clamp, damp, lerp } from '../utils/math';
+import type { Shortcut } from '../world/Shortcut';
 import type { Track } from '../world/Track';
 
 const HALF_LEN = TRUCK.length / 2;
@@ -18,7 +19,10 @@ export class TruckController {
   steer = 0;
   yawRate = 0;
   s = 0;
+  /** across the road, measured from the highway's centreline (also on a shortcut) */
   d = 0;
+  /** the village shortcut the truck is on, null = the highway */
+  road: Shortcut | null = null;
   offRoad = false;
   scraping = false;
   /** 0..1 cargo load, reduces acceleration */
@@ -51,7 +55,12 @@ export class TruckController {
   }
 
   get frontS(): number {
-    return this.s + HALF_LEN * Math.cos(this.heading - this.track.headingAt(this.s));
+    return this.s + HALF_LEN * Math.cos(this.heading - this.roadHeading(this.s));
+  }
+
+  /** Heading of the road the truck is on. */
+  roadHeading(s: number): number {
+    return this.road ? this.road.headingAt(s) : this.track.headingAt(s);
   }
 
   get rearS(): number {
@@ -62,6 +71,7 @@ export class TruckController {
     this.speed = 0;
     this.steer = 0;
     this.yawRate = 0;
+    this.road = null;
     this.heading = this.track.headingAt(s);
     this.setS(s, d);
   }
@@ -71,7 +81,7 @@ export class TruckController {
     this.d = d;
     this.z = -s;
     this.x = this.track.centerX(s) + d;
-    this.y = this.track.surfaceY(s);
+    this.y = this.road ? this.road.surfaceY(s) : this.track.surfaceY(s);
   }
 
   stop(): void {
@@ -130,8 +140,10 @@ export class TruckController {
     if (this.stuck) this.speed = 0;
     const mudCap = this.mudCapKmh / 3.6;
     if (Math.abs(this.speed) > mudCap) this.speed = Math.sign(this.speed) * mudCap;
-    // Broken road: the potholes won't let you go faster (shed the extra speed quickly)
-    const cap = this.speedCapKmh / 3.6;
+    // Broken road: the potholes won't let you go faster (shed the extra speed quickly); same for the
+    // speed limit on a village shortcut once you're on it
+    const onShortcut = this.road && !this.road.inMouth(this.s);
+    const cap = Math.min(this.speedCapKmh, onShortcut ? SHORTCUT.maxKmh : Infinity) / 3.6;
     if (this.speed > cap) this.speed = Math.max(cap, this.speed - BROKEN_ROAD.slowDecel * dt);
 
     // Steering: yaw rate falls with speed; tiny at standstill
@@ -143,7 +155,7 @@ export class TruckController {
     // scaled with the world speed so turning circles stay the same size
     this.yawRate = damp(this.yawRate, this.steer * maxYaw * WORLD.speedScale * (this.speed < 0 ? -1 : 1), T.yawResponse, dt);
     this.heading += this.yawRate * dt;
-    const roadH = this.track.headingAt(this.s);
+    const roadH = this.roadHeading(this.s);
     // No driving assist: the truck keeps its heading; the player steers through every bend.
     this.heading = clamp(this.heading, roadH - T.maxHeadingOffset, roadH + T.maxHeadingOffset);
 
@@ -166,7 +178,11 @@ export class TruckController {
       if (this.speed > 0) this.speed = 0;
     }
 
-    const [lo, hi] = this.track.lateralRange(s);
+    // At a fork / join the truck is on whichever road it is closer to
+    const sc = this.track.shortcutAt(s);
+    if (!sc) this.road = null;
+    else if (sc.inMouth(s)) this.road = Math.abs(d - sc.offset(s)) < Math.abs(d) ? sc : null;
+    const [lo, hi] = this.lateralRange(s, sc);
     this.scraping = false;
     if (d < lo || d > hi) {
       d = d < lo ? lo : hi;
@@ -175,12 +191,27 @@ export class TruckController {
       this.heading = damp(this.heading, roadH, 4, dt);
     }
     this.setS(s, d);
-    this.offRoad = Math.abs(d) > this.track.halfWidth(s) + 2.2 && !this.track.bridgeAt(s);
-    this.pitch = Math.atan(this.track.slopeAt(s));
+    const r = this.road;
+    this.offRoad = r
+      ? Math.abs(d - r.offset(s)) > r.halfWidth(s) + 2.2
+      : Math.abs(d) > this.track.halfWidth(s) + 2.2 && !this.track.bridgeAt(s) && !this.track.isFlyover(s);
+    this.pitch = Math.atan(r ? r.slopeAt(s) : this.track.slopeAt(s));
 
     // Visual bump
     const rough = (this.offRoad ? 1 : 0) + (this.rumble ? 1.2 : 0) + (this.rough ? 1.6 : 0);
     this.bumpPhase += dt * (8 + v * 0.8);
     this.bump = rough > 0 ? Math.sin(this.bumpPhase) * 0.04 * rough * Math.min(1, v / 8) : 0;
+  }
+
+  /** Allowed [min, max] d at s: the highway's, the shortcut's, or both together at a fork / join. */
+  private lateralRange(s: number, sc: Shortcut | undefined): [number, number] {
+    const main = this.track.lateralRange(s);
+    if (!sc) return main;
+    const o = sc.offset(s);
+    const hw = sc.halfWidth(s);
+    // you can run off into the paddy
+    const w = hw + SHORTCUT.verge;
+    if (sc.inMouth(s)) return [Math.min(main[0], o - w), Math.max(main[1], o + w)];
+    return this.road ? [o - w, o + w] : main;
   }
 }

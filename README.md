@@ -111,6 +111,25 @@ waves his flag. A long train with 9 coaches passes with a horn and wheel clatter
 - Traffic queues at the gate.
 - Gates never close in the middle of a chase.
 
+## Village shortcuts
+
+Every route has 2 village shortcuts (`SHORTCUT` in `tuning.ts`), each going round one chanda barrier
+(never the one at the city entrance). It always forks off to the left and always rejoins from the left;
+a green sign and a HUD hint announce it. Steer onto it and you skip that barrier.
+- It's a curvy 2-lane village road through paddy fields and roadside trees, about 80 m from the highway,
+  and it rejoins the highway 1.1–1.3 km past the barrier.
+- A **left** one stays on the left all the way. A **right** one passes under the highway soon after the
+  fork (the highway climbs over it on a flyover), runs along the right side past the barrier, then passes
+  under a second highway flyover to rejoin from the left. It's a coin flip (`rightChance`). The village
+  road itself is always on the ground.
+- Speed limit 70 km/h (`maxKmh`), signposted along the road; the truck won't go faster there. That also
+  means you can't shake off a chase on a shortcut (escaping needs 90+).
+- No buses or trucks: only slow rickshaws, CNGs and motorbikes, so it isn't automatically faster.
+- Run off the road into the paddy and you get stuck in the mud, as you would beside the highway.
+- `Shortcut.ts` holds the road maths (an offset from the highway's centreline); `ShortcutRoads.ts`
+  builds the village road, the flyover's piers and the signs. The flyover deck is part of the highway
+  (`Track` elevation, drawn by `RoadStreamer`).
+
 ## Weather and time of day
 
 `world/Weather.ts` drifts randomly between দিন, সন্ধ্যা, রাত, মেঘলা, বৃষ্টি and ঝড়. Each state holds for

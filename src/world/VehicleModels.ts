@@ -4,9 +4,9 @@ import * as THREE from 'three';
 import { box, buildColored, cached, cyl, type Part } from '../utils/geometry';
 import { personParts } from './People';
 
-export type TrafficKind = 'bus' | 'truck' | 'car' | 'cng' | 'rickshaw';
+export type TrafficKind = 'bus' | 'truck' | 'car' | 'cng' | 'rickshaw' | 'bike';
 
-export const VEHICLE_DIMS: Record<TrafficKind | 'bike' | 'pickup', { len: number; wid: number }> = {
+export const VEHICLE_DIMS: Record<TrafficKind | 'pickup', { len: number; wid: number }> = {
   bus: { len: 11, wid: 2.5 },
   truck: { len: 8.5, wid: 2.5 },
   car: { len: 4.4, wid: 1.8 },
@@ -96,6 +96,21 @@ export function vehicleGeometry(kind: TrafficKind, variant: number): THREE.Buffe
           ...wheels([-0.5, 0.5], [0.5], 0.33, 0.05),
           ...personParts({ skin: 0x7b4a2e, shirt: 0xf2f0ea, lower: 0x3b5d8f, lungi: true, seated: true }, [0, 0.55, -0.35]),
         ]);
+      }
+      case 'bike': {
+        // village motorbike: a rider, and on every other one a passenger in a lungi
+        const c = [0xc1121f, 0x1d3557, 0x2b2b2b, 0x2a9d8f, 0x6a040f][variant % 5];
+        const shirt = [0xf2f0ea, 0xe9c46a, 0x9ec3e6, 0xf4a6a6, 0xb5d3a7][variant % 5];
+        const parts: Part[] = [
+          { geo: box(0.3, 0.45, 1.5), color: c, p: [0, 0.75, 0] },
+          { geo: box(0.35, 0.12, 0.9), color: 0x111111, p: [0, 1.0, 0.2] },
+          { geo: box(0.7, 0.06, 0.06), color: 0x888888, p: [0, 1.2, -0.65] },
+          { geo: cyl(0.32, 0.32, 0.12, 10), color: TYRE, p: [0, 0.32, -0.72], r: [0, 0, Math.PI / 2] },
+          { geo: cyl(0.32, 0.32, 0.12, 10), color: TYRE, p: [0, 0.32, 0.72], r: [0, 0, Math.PI / 2] },
+          ...personParts({ skin: 0x8d5a3b, shirt, lower: 0x3a3a40, lungi: false, seated: true }, [0, 0.55, 0.1]),
+        ];
+        if (variant % 2) parts.push(...personParts({ skin: 0x7b4a2e, shirt: 0xd9c7a3, lower: 0x2f6b4f, lungi: true, seated: true }, [0, 0.6, 0.6]));
+        return buildColored(parts);
       }
     }
   });

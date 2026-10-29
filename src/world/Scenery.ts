@@ -1,12 +1,13 @@
 // Deterministic, chunk-based roadside scenery drawn with InstancedMesh (one draw call per prop kind).
 
 import * as THREE from 'three';
-import { ROAD } from '../config/tuning';
+import { ROAD, SHORTCUT } from '../config/tuning';
 import { vertexColorMaterial } from '../utils/geometry';
 import { hash2, mulberry32, pick, range, type Rng } from '../utils/rng';
 import { windowTexture } from '../utils/textures';
 import { adBoard, adMaterials, PANEL_W, shuffle } from './AdBoards';
 import { propGeometry, type PropKind } from './Props';
+import type { Shortcut } from './Shortcut';
 import type { Track } from './Track';
 
 const CAPACITY: Record<PropKind, number> = {
@@ -81,6 +82,8 @@ export class Scenery {
   private place(out: Placement[], kind: PropKind, s: number, d: number, rotY: number, sx = 1, sy = 1, sz = 1, color?: number): void {
     const t = this.track;
     if (t.isBlocked(s, d)) return;
+    // fields, ponds and buildings are big: keep the whole thing (ends and middle) off the village shortcuts
+    if ((kind === 'paddy' || kind === 'pond' || kind === 'building') && [-0.5, 0, 0.5].some((k) => t.nearShortcut(s + k * sz, d, sx / 2 + 2))) return;
     const y = t.isRiver(s, 0) ? -100 : 0;
     this.tmpE.set(0, rotY, 0);
     this.tmpQ.setFromEuler(this.tmpE);
@@ -102,6 +105,9 @@ export class Scenery {
       if (s0 < -200 || s0 > this.track.length + 300) continue;
       const rng = mulberry32(hash2(c, 1337));
       this.genChunk(out, rng, s0, L, bbSlots, c);
+      for (const sc of this.track.shortcuts) {
+        if (s0 + L > sc.from && s0 < sc.to) this.shortcutChunk(out, sc, s0, L, mulberry32(hash2(c, 4242)));
+      }
     }
 
     const counts = new Map<PropKind, number>();
@@ -123,7 +129,7 @@ export class Scenery {
 
     this.billboards.forEach((b) => (b.visible = false));
     for (const slot of this.billboards.length ? bbSlots : []) {
-      if (this.track.isBlocked(slot.s, slot.d)) continue;
+      if (this.track.isBlocked(slot.s, slot.d) || this.track.nearFlyover(slot.s)) continue;
       const n = this.billboards.length;
       const b = this.billboards[((slot.idx % n) + n) % n];
       if (b.visible) continue;
@@ -131,6 +137,39 @@ export class Scenery {
       b.position.set(this.track.centerX(slot.s) + slot.d, 0, -slot.s);
       // Face the approaching truck, angled toward the road
       b.rotation.y = -slot.side * 0.35;
+    }
+  }
+
+  /** Paddy fields, roadside trees and the odd hut along a village shortcut. */
+  private shortcutChunk(out: Placement[], sc: Shortcut, s0: number, L: number, rng: Rng): void {
+    const t = this.track;
+    const a = Math.max(s0, sc.from);
+    const b = Math.min(s0 + L, sc.to);
+    // [s, d] beside the shortcut, `gap` metres out from its edge; null on (or under) the highway
+    const spot = (gap: number, reach: number): [number, number] | null => {
+      const s = a + rng() * (b - a);
+      const side = rng() < 0.5 ? -1 : 1;
+      const d = sc.offset(s) + side * (sc.halfWidth(s) + SHORTCUT.shoulder + gap);
+      if (Math.abs(d) - reach < t.halfWidth(s) + ROAD.shoulder + 4) return null;
+      return [s, d];
+    };
+    for (let i = 0; i < 4; i++) {
+      const w = range(rng, 14, 24);
+      const p = spot(5 + w / 2 + rng() * 22, w / 2);
+      if (p) this.place(out, 'paddy', p[0], p[1], 0, w, 1, range(rng, 16, 30), pick(rng, PADDY_COLORS));
+    }
+    for (let i = 0; i < 8; i++) {
+      const p = spot(range(rng, 3.5, 9), 2);
+      const sc2 = range(rng, 0.8, 1.3);
+      if (p) this.place(out, pick(rng, ['banana', 'banana', 'palm', 'bamboo', 'roundTree', 'shrub'] as PropKind[]), p[0], p[1], rng() * 6.28, sc2, sc2, sc2);
+    }
+    if (rng() < 0.3) {
+      const p = spot(range(rng, 10, 18), 4);
+      if (p) this.place(out, 'hut', p[0], p[1], (p[1] > sc.offset(p[0]) ? -Math.PI / 2 : Math.PI / 2) + range(rng, -0.3, 0.3));
+    }
+    if (rng() < 0.25) {
+      const p = spot(range(rng, 8, 20), 3);
+      if (p) this.place(out, 'haystack', p[0], p[1], 0);
     }
   }
 

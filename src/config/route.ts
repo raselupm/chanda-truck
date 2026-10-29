@@ -3,7 +3,7 @@
 // Distances (s, metres along the track) are compressed for gameplay.
 
 import { ECONOMY, type FeeKey } from './economy';
-import { BROKEN_ROAD, CITY, RAIL, ROADWORKS, SLOW_ZONES } from './tuning';
+import { BROKEN_ROAD, CITY, RAIL, ROADWORKS, SHORTCUT, SLOW_ZONES } from './tuning';
 import type { VegId } from './vegetables';
 import { toBnDigits } from '../utils/bnNumber';
 import { mulberry32, range, type Rng } from '../utils/rng';
@@ -78,6 +78,19 @@ export interface SlowZone {
   side: -1 | 1;
 }
 
+/**
+ * A village road round a chanda barrier: forks off to the left at `from` and rejoins from the left at `to`.
+ * A right-side one passes under the highway (which goes over it on a flyover) at each of `crossings`:
+ * over to the right before the barrier, back to the left after it.
+ */
+export interface ShortcutDef {
+  from: number;
+  to: number;
+  /** side of the highway it runs along past the barrier (-1 = left) */
+  side: -1 | 1;
+  crossings: number[];
+}
+
 export interface RouteDef {
   id: string;
   nameBn: string;
@@ -94,6 +107,8 @@ export interface RouteDef {
   broken: [number, number][];
   /** the city avenue with 4 + 4 lanes (only the inner ones open) */
   wide: [number, number] | null;
+  /** village shortcuts round some of the barriers */
+  shortcuts: ShortcutDef[];
   events: RouteEvent[];
   /** total track length (a little beyond the market) */
   length: number;
@@ -226,6 +241,11 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     if (seq[at - 1] !== 'B') seq.splice(at, 0, 'P');
   }
 
+  // A few barriers (never the one at the city entrance) get a village shortcut round them
+  const scIdx = seq.map((it, i) => (it === 'B' && i !== seq.length - 1 ? i : -1)).filter((i) => i >= 0).sort(() => rng() - 0.5);
+  const withShortcut = new Set(scIdx.slice(0, SHORTCUT.perRoute));
+  const shortcuts: ShortcutDef[] = [];
+
   const places = [...BARRIER_PLACES].sort(() => rng() - 0.5);
   const events: RouteEvent[] = [...FARMS];
   const townZones: [number, number][] = [];
@@ -248,6 +268,11 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
       s += len - 200 + range(rng, ...LAYOUT.afterBroken);
     } else if (item === 'B') {
       const last = idx === seq.length - 1;
+      const sc = withShortcut.has(idx);
+      const right = sc && rng() < SHORTCUT.rightChance;
+      const forkBefore = right ? SHORTCUT.forkBeforeFlyover : SHORTCUT.forkBefore;
+      // room for the fork (and the flyover) before the barrier
+      if (sc) s += forkBefore - 250;
       const place = last ? 'শহরের প্রবেশমুখ' : places[b % places.length];
       events.push({
         id: `b${b + 1}`,
@@ -260,7 +285,19 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
       });
       if (rng() < 0.6 || last) townZones.push([s - 380, s + 120]);
       b++;
-      s += range(rng, ...LAYOUT.afterBarrier);
+      if (sc) {
+        const from = s - forkBefore;
+        const joinAfter = right ? SHORTCUT.joinAfterFlyover : SHORTCUT.joinAfter;
+        shortcuts.push({
+          from,
+          to: s + joinAfter,
+          side: right ? 1 : -1,
+          crossings: right ? [from + SHORTCUT.crossAfterFork, s + SHORTCUT.crossBackAfter] : [],
+        });
+        s += joinAfter + range(rng, 400, 550);
+      } else {
+        s += range(rng, ...LAYOUT.afterBarrier);
+      }
     } else {
       events.push({ ...item, s });
       if (item.bridge) s += item.bridge.offset + item.bridge.length + range(rng, ...LAYOUT.afterBridge);
@@ -292,6 +329,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     [0, LAYOUT.highwayStart + 300], [cityStartS - 400, marketS + 400],
     ...townZones.map(([a, b2]) => [a - 200, b2 + 200] as [number, number]),
     ...broken.map(([a, b2]) => [a - 150, b2 + 150] as [number, number]),
+    ...shortcuts.map((sc) => [sc.from - 200, sc.to + 200] as [number, number]),
   ];
   for (const e of events) {
     if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
@@ -320,6 +358,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     slowZones,
     broken,
     wide,
+    shortcuts,
     events,
     length: marketS + 300,
   };

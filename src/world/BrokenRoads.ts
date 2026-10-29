@@ -61,7 +61,7 @@ export class BrokenRoads {
     let now: Stretch | null = null;
     for (const st of this.stretches) {
       st.group.visible = tr.s > st.from - 650 && tr.s < st.from;
-      if (tr.frontS >= st.from && tr.frontS <= st.to) now = st;
+      if (tr.frontS >= st.from && tr.frontS <= st.to && !tr.road) now = st;
     }
     tr.speedCapKmh = now ? BROKEN_ROAD.maxKmh : Infinity;
     tr.rough = !!now;

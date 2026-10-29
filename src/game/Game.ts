@@ -40,6 +40,7 @@ import { Weather } from '../world/Weather';
 import { Farm } from '../world/Farm';
 import { RoadStreamer } from '../world/RoadStreamer';
 import { Scenery } from '../world/Scenery';
+import { ShortcutRoads } from '../world/ShortcutRoads';
 import type { SetPiece } from '../world/SetPiece';
 import { TollPlaza } from '../world/TollPlaza';
 import { Track } from '../world/Track';
@@ -82,6 +83,7 @@ export class Game {
   readonly thieves: Thieves;
   readonly mud: Mud;
   private ads = new AdBoards();
+  private shortcuts: ShortcutRoads;
   readonly clutter: CityClutter;
   readonly weather = new Weather();
   /** every set piece (farms, barriers, tolls, bridges, market) */
@@ -128,6 +130,8 @@ export class Game {
     this.thieves = new Thieves(this);
     this.mud = new Mud(this);
     this.clutter = new CityClutter(this.track);
+    this.shortcuts = new ShortcutRoads(this);
+    scene.add(this.shortcuts.group);
     scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group, this.ads.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
@@ -179,6 +183,7 @@ export class Game {
     this.scenery.setTrack(this.track);
     this.truck.setTrack(this.track);
     this.clutter.setTrack(this.track);
+    this.shortcuts.build();
     this.slowZones.build(route.slowZones);
     this.brokenRoads.build(route.broken);
     this.thieves.reset();
@@ -493,15 +498,21 @@ export class Game {
     this.result.show(r, score, submitted);
   }
 
+  /** Is the truck on a village shortcut that goes round s (a barrier back on the highway)? */
+  bypasses(s: number): boolean {
+    const r = this.truck.road;
+    return !!r && !r.inMouth(this.truck.s) && s > r.from && s < r.to;
+  }
+
   nextBlockingPiece(fromS: number): SetPiece | null {
     let best: SetPiece | null = null;
-    for (const p of this.routePieces) if (p.blocking && p.s > fromS - 1 && (!best || p.s < best.s)) best = p;
+    for (const p of this.routePieces) if (p.blocking && p.s > fromS - 1 && !this.bypasses(p.s) && (!best || p.s < best.s)) best = p;
     return best;
   }
 
   nextPieceAhead(fromS: number): SetPiece | null {
     let best: SetPiece | null = null;
-    for (const p of this.routePieces) if (p.s > fromS && (!best || p.s < best.s)) best = p;
+    for (const p of this.routePieces) if (p.s > fromS && !this.bypasses(p.s) && (!best || p.s < best.s)) best = p;
     return best;
   }
 
@@ -532,6 +543,7 @@ export class Game {
         this.slowZones.update(dt);
         this.thieves.update(dt);
         this.mud.update(dt);
+        this.shortcuts.update();
         const honking = this.input.horn && !this.modal && phase !== 'ARRIVAL';
         this.sound.horn(honking);
         // Horn: each press is a tap; holding it counts as a long press (buses & trucks need that or 3 taps)

@@ -166,9 +166,10 @@ export class Chasers {
           u.mesh.visible = false;
         }
       }
-      const tr = g.track;
-      u.mesh.position.set(tr.centerX(u.s) + u.d, tr.surfaceY(u.s), -u.s);
-      u.mesh.rotation.set(Math.sin(this.t * 3 + u.phase) * 0.01, (u.facing === 1 ? 0 : Math.PI) - tr.headingAt(u.s), u.pickup ? 0 : Math.sin(this.t * 1.5 + u.phase) * 0.12);
+      // they follow the truck onto a village shortcut
+      const road = t.road?.contains(u.s) ? t.road : g.track;
+      u.mesh.position.set(g.track.centerX(u.s) + u.d, road.surfaceY(u.s), -u.s);
+      u.mesh.rotation.set(Math.sin(this.t * 3 + u.phase) * 0.01, (u.facing === 1 ? 0 : Math.PI) - road.headingAt(u.s), u.pickup ? 0 : Math.sin(this.t * 1.5 + u.phase) * 0.12);
     }
     if (this.state === 'leaving' && !this.units.some((u) => u.active)) this.state = 'idle';
   }

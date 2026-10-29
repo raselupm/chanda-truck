@@ -176,7 +176,8 @@ export class Barrier extends SetPiece<BarrierEvent> {
     const hw = g.track.halfWidth(S);
     const lineS = S - 0.6;
 
-    if (this.state === 'closed' && g.state.phase === 'HIGHWAY') {
+    // (not while the truck goes round it on a village shortcut)
+    if (this.state === 'closed' && g.state.phase === 'HIGHWAY' && !g.bypasses(S)) {
       if (!this.warned && front > S - EVENTS.barrierWarnDistance && front < S) {
         this.warned = true;
         g.hud.warn('{warning} সামনে চাঁদাবাজি!', 'danger', 3.5);

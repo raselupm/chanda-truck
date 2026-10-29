@@ -3,9 +3,10 @@
 // Around every event the road is perfectly straight at x = 0, so set pieces need no rotation.
 
 import * as THREE from 'three';
-import { CITY, JUNCTION, ROAD } from '../config/tuning';
+import { CITY, JUNCTION, ROAD, SHORTCUT } from '../config/tuning';
 import type { BridgeStyle, RouteDef } from '../config/route';
 import { clamp, smoothstep } from '../utils/math';
+import { Shortcut } from './Shortcut';
 
 export type ZoneKind = 'village' | 'rural' | 'town' | 'river' | 'city';
 
@@ -47,6 +48,8 @@ export class Track {
   readonly bridges: BridgeSpan[] = [];
   readonly limits: LateralLimit[] = [];
   readonly propBlocks: PropBlock[] = [];
+  /** village roads round some of the barriers */
+  readonly shortcuts: Shortcut[] = [];
   private cx: Float32Array;
   private el: Float32Array;
 
@@ -115,8 +118,13 @@ export class Track {
           h = Math.max(h, k * b.deck);
         }
       }
+      // the highway's flyovers over the village shortcuts
+      for (const sc of route.shortcuts) {
+        for (const c of sc.crossings) h = Math.max(h, SHORTCUT.deck * (1 - smoothstep(SHORTCUT.deckFlat, SHORTCUT.deckFlat + SHORTCUT.ramp, Math.abs(s - c))));
+      }
       this.el[i] = h;
     }
+    for (const def of route.shortcuts) this.shortcuts.push(new Shortcut(def, this));
   }
 
   private sample(arr: Float32Array, s: number): number {
@@ -207,6 +215,7 @@ export class Track {
   lateralRange(s: number): [number, number] {
     let limit: number;
     if (this.bridgeAt(s)) limit = this.halfWidth(s) + 1.0 - 1.35;
+    else if (this.isFlyover(s)) limit = this.halfWidth(s) + ROAD.shoulder - 1.35;
     else if (this.elevation(s) > 1.5) limit = this.halfWidth(s) + ROAD.shoulder - 0.8;
     else if (this.isVillage(s)) limit = this.halfWidth(s) + 5;
     else limit = ROAD.hardLimit;
@@ -232,7 +241,27 @@ export class Track {
     for (const b of this.propBlocks) {
       if (s >= b.from && s <= b.to && d >= b.dMin && d <= b.dMax) return true;
     }
-    return false;
+    return this.nearShortcut(s, d, 4);
+  }
+
+  /** Near the highway's flyover over a village shortcut (nothing tall may stand there). */
+  nearFlyover(s: number, margin = 40): boolean {
+    return this.shortcuts.some((sc) => sc.crossings.some((c) => Math.abs(s - c) < SHORTCUT.deckFlat + SHORTCUT.ramp + margin));
+  }
+
+  /** On the highway's flyover (deck or ramp, off the ground): parapets, no verge to drive on. */
+  isFlyover(s: number): boolean {
+    return this.elevation(s) > 0.3 && this.nearFlyover(s, 0);
+  }
+
+  shortcutAt(s: number): Shortcut | undefined {
+    return this.shortcuts.find((sc) => sc.contains(s));
+  }
+
+  /** Is (s, d) on a village shortcut or within pad metres of its edge? */
+  nearShortcut(s: number, d: number, pad: number): boolean {
+    const sc = this.shortcutAt(s);
+    return !!sc && Math.abs(d - sc.offset(s)) < sc.halfWidth(s) + pad;
   }
 
   point(s: number, d: number, out: THREE.Vector3, yOffset = 0): THREE.Vector3 {

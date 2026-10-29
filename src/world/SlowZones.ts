@@ -150,7 +150,7 @@ export class SlowZones {
     let now: SlowZone | null = null;
     for (const z of this.zones) {
       z.group.visible = tr.s > z.zone.from - 650 && tr.s < z.zone.to + 150;
-      if (tr.frontS >= z.zone.from && tr.frontS <= z.zone.to) now = z.zone;
+      if (tr.frontS >= z.zone.from && tr.frontS <= z.zone.to && !tr.road) now = z.zone;
       if (z.group.visible) for (const k of z.kids) k.position.y = Math.max(0, Math.sin(this.t * 6 + k.userData.phase)) * 0.35;
     }
     if (g.state.phase !== 'HIGHWAY') {

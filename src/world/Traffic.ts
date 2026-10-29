@@ -1,20 +1,24 @@
 // Pooled highway traffic (left-hand driving): buses, trucks, cars, CNGs, rickshaws, plus collisions.
+// The village shortcuts get their own: rickshaws, CNGs and motorbikes only.
 
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
-import { BROKEN_ROAD, CITY, ROAD, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
+import { BROKEN_ROAD, CITY, ROAD, SHORTCUT, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
 import { clamp, damp } from '../utils/math';
 import { adMaterials } from './AdBoards';
 import { rearMaterials, sideMaterials, stickerMaterials } from './VehicleArt';
 import { VEHICLE_DIMS, vehicleGeometry, type TrafficKind } from './VehicleModels';
+import type { Shortcut } from './Shortcut';
 import type { ZoneKind } from './Track';
 
 interface Vehicle {
   active: boolean;
   kind: TrafficKind;
   mesh: THREE.Group;
+  /** the village shortcut it drives on (d is then across that road), null = the highway */
+  road: Shortcut | null;
   s: number;
   d: number;
   targetD: number;
@@ -61,6 +65,8 @@ const MIX: Record<ZoneKind, [TrafficKind, number][]> = {
   river: [['bus', 0.45], ['truck', 0.4], ['car', 0.15]],
   city: [['bus', 0.18], ['car', 0.22], ['cng', 0.28], ['rickshaw', 0.32]],
 };
+/** no buses or trucks on the village roads */
+const SHORTCUT_MIX: [TrafficKind, number][] = [['rickshaw', 0.4], ['cng', 0.35], ['bike', 0.25]];
 
 const SPEED_KMH: Record<TrafficKind, [number, number]> = {
   bus: [55, 72],
@@ -68,6 +74,7 @@ const SPEED_KMH: Record<TrafficKind, [number, number]> = {
   car: [60, 80],
   cng: [32, 42],
   rickshaw: [10, 15],
+  bike: [32, 48],
 };
 
 export interface HonkResult {
@@ -81,7 +88,7 @@ export interface HonkResult {
 
 const LAMP_GEO = new THREE.BoxGeometry(0.34, 0.2, 0.06);
 
-const POOL_PER_KIND: Record<TrafficKind, number> = { bus: 10, truck: 8, car: 12, cng: 14, rickshaw: 16 };
+const POOL_PER_KIND: Record<TrafficKind, number> = { bus: 10, truck: 8, car: 12, cng: 18, rickshaw: 20, bike: 8 };
 
 export class Traffic {
   readonly group = new THREE.Group();
@@ -101,9 +108,9 @@ export class Traffic {
         g.add(new THREE.Mesh(vehicleGeometry(kind, variant++ % 5), mat));
         g.add(blobShadow(dims.wid * 1.3, dims.len * 1.1));
         // Lamps (only visible when it's dark)
-        const lampY = kind === 'rickshaw' ? 0.9 : kind === 'cng' ? 0.7 : 1.0;
+        const lampY = kind === 'rickshaw' || kind === 'bike' ? 0.9 : kind === 'cng' ? 0.7 : 1.0;
         const lamps = new THREE.Group();
-        for (const x of kind === 'rickshaw' || kind === 'cng' ? [0] : [-dims.wid * 0.34, dims.wid * 0.34]) {
+        for (const x of kind === 'rickshaw' || kind === 'cng' || kind === 'bike' ? [0] : [-dims.wid * 0.34, dims.wid * 0.34]) {
           const h = new THREE.Mesh(LAMP_GEO, this.headMat);
           h.position.set(x, lampY, -dims.len / 2 - 0.04);
           const t = new THREE.Mesh(LAMP_GEO, this.tailMat);
@@ -118,7 +125,7 @@ export class Traffic {
         g.visible = false;
         this.group.add(g);
         this.pool.push({
-          active: false, kind, mesh: g, s: 0, d: 0, targetD: 0, speed: 0, cruise: 0, dir: 1,
+          active: false, kind, mesh: g, road: null, s: 0, d: 0, targetD: 0, speed: 0, cruise: 0, dir: 1,
           len: dims.len, wid: dims.wid, heavy: kind === 'bus' || kind === 'truck',
           overtaker: false, overtakeState: 0, stalled: 0, hitCooldown: 0, hop: 0, yieldTimer: 0, homeD: 0, honks: 0, honkTimer: 0,
           servedS: -Infinity, serve: 0, pinUntil: -Infinity, greenS: -Infinity,
@@ -132,19 +139,23 @@ export class Traffic {
   private buildArt(kind: TrafficKind): { group: THREE.Group; rear: THREE.Mesh | null; sides: THREE.Mesh[] } {
     const group = new THREE.Group();
     const plane = (w: number, h: number) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), rearMaterials()[0]);
-    const spec: Record<TrafficKind, { rear: [number, number, number, number, number]; side?: [number, number, number, number, number] }> = {
+    const spec: Record<TrafficKind, { rear?: [number, number, number, number, number]; side?: [number, number, number, number, number] }> = {
       // [w, h, x/y/z...] rear: w, h, y, z ; side: w, h, x, y, z
       bus: { rear: [2.2, 0.9, 0, 2.0, 5.52], side: [8.5, 0.5, 1.28, 1.02, 0] },
       truck: { rear: [2.2, 1.2, 0, 2.6, 4.12], side: [5.2, 0.75, 1.27, 2.7, 1.2] },
       cng: { rear: [1.2, 0.42, 0, 0.62, 1.31] },
       rickshaw: { rear: [0.9, 0.5, 0, 1.25, 0.87] },
       car: { rear: [1.2, 0.2, 0, 0.98, 2.21] },
+      bike: {},
     };
     const sp = spec[kind];
-    const [rw, rh, rx, ry, rz] = sp.rear;
-    const rear = plane(rw, rh);
-    rear.position.set(rx, ry, rz);
-    group.add(rear);
+    let rear: THREE.Mesh | null = null;
+    if (sp.rear) {
+      const [rw, rh, rx, ry, rz] = sp.rear;
+      rear = plane(rw, rh);
+      rear.position.set(rx, ry, rz);
+      group.add(rear);
+    }
     const sides: THREE.Mesh[] = [];
     if (sp.side) {
       const [sw, sh, sx, sy, sz] = sp.side;
@@ -190,9 +201,9 @@ export class Traffic {
         continue;
       }
       const gap = v.s - t.s;
-      if (gap <= 0 || gap > 140 || Math.abs(v.d - t.d) > 2.6 || v.yieldTimer > 0) continue;
+      if (gap <= 0 || gap > 140 || !this.meetsTruck(v) || Math.abs(this.worldD(v) - t.d) > 2.6 || v.yieldTimer > 0) continue;
       // stuck in a queue, or a bus on the city avenue with nowhere to go
-      const wide = g.track.isWide(v.s);
+      const wide = !v.road && g.track.isWide(v.s);
       if (v.speed < 1 || (wide && v.heavy)) continue;
       if (v.heavy && press === 'tap') {
         v.honks++;
@@ -202,13 +213,19 @@ export class Traffic {
           continue;
         }
       }
-      const inner = g.track.laneD(v.s, false);
-      const outer = g.track.laneD(v.s, true);
-      // on the avenue small vehicles squeeze against the rickshaws; elsewhere they swap lanes
-      const target = wide ? -(CITY.openLanes * CITY.laneWidth + 0.45) : v.d > -(inner + outer) / 2 ? -outer : -inner;
+      let target: number;
+      if (v.road) {
+        // village road: squeeze onto the verge
+        target = -(SHORTCUT.halfWidth - v.wid / 2 - 0.15);
+      } else {
+        const inner = g.track.laneD(v.s, false);
+        const outer = g.track.laneD(v.s, true);
+        // on the avenue small vehicles squeeze against the rickshaws; elsewhere they swap lanes
+        target = wide ? -(CITY.openLanes * CITY.laneWidth + 0.45) : v.d > -(inner + outer) / 2 ? -outer : -inner;
+      }
       // only if the other lane is free next to it
       const blocked = this.pool.some(
-        (o) => o !== v && o.active && o.dir === 1 && Math.abs(o.d - target) < 1.6 && Math.abs(o.s - v.s) < (o.len + v.len) / 2 + 6,
+        (o) => o !== v && o.active && o.road === v.road && o.dir === 1 && Math.abs(o.d - target) < 1.6 && Math.abs(o.s - v.s) < (o.len + v.len) / 2 + 6,
       );
       if (blocked) continue;
       v.homeD = v.d;
@@ -236,10 +253,26 @@ export class Traffic {
     }
   }
 
-  private activeCount(dir: 1 | -1, fromS: number): number {
+  private activeCount(dir: 1 | -1, fromS: number, road: Shortcut | null): number {
     let n = 0;
-    for (const v of this.pool) if (v.active && v.dir === dir && v.s > fromS) n++;
+    for (const v of this.pool) if (v.active && v.road === road && v.dir === dir && v.s > fromS) n++;
     return n;
+  }
+
+  /** d measured from the highway's centreline, like the truck's. */
+  private worldD(v: Vehicle): number {
+    return v.road ? v.d + v.road.offset(v.s) : v.d;
+  }
+
+  /**
+   * Can the truck and v run into each other? Only on the same road, or at a fork / join where the
+   * shortcut still overlaps the highway (never with one on the flyover and the other underneath).
+   */
+  private meetsTruck(v: Vehicle): boolean {
+    const t = this.game.truck;
+    if (v.road === t.road) return true;
+    const sc = (v.road ?? t.road)!;
+    return Math.abs(sc.offset(v.s)) < 10 && this.game.track.elevation(v.s) < 1;
   }
 
   /** Is s inside a zone where unresolved set pieces forbid traffic? */
@@ -313,15 +346,39 @@ export class Traffic {
     const d = dir === 1 ? -lane : lane;
     // keep a gap from others in the same lane
     for (const o of this.pool) {
-      if (o.active && o.dir === dir && Math.abs(o.d - d) < 3 && Math.abs(o.s - s) < 30) return;
+      if (o.active && !o.road && o.dir === dir && Math.abs(o.d - d) < 3 && Math.abs(o.s - s) < 30) return;
     }
-    this.activate(v, s, d, dir);
+    this.activate(v, s, d, dir, null);
     v.overtaker = dir === -1 && v.heavy && !outer && Math.random() < TRAFFIC.overtakerChance;
   }
 
-  private activate(v: Vehicle, s: number, d: number, dir: 1 | -1): void {
+  /** A rickshaw, CNG or motorbike on a village shortcut, somewhere ahead of the truck. */
+  private trySpawnShortcut(sc: Shortcut, dir: 1 | -1): void {
+    const s = this.game.truck.s + TRAFFIC.spawnAheadMin + Math.random() * (TRAFFIC.spawnAheadMax - TRAFFIC.spawnAheadMin);
+    if (s < sc.from + 40 || s > sc.to - 40) return;
+    let r = Math.random();
+    let kind: TrafficKind = SHORTCUT_MIX[0][0];
+    for (const [k, w] of SHORTCUT_MIX) {
+      if ((r -= w) <= 0) {
+        kind = k;
+        break;
+      }
+    }
+    const v = this.pool.find((p) => !p.active && p.kind === kind);
+    if (!v) return;
+    // rickshaws keep to the verge
+    const lane = kind === 'rickshaw' ? SHORTCUT.halfWidth - 0.85 : SHORTCUT.halfWidth / 2;
+    const d = dir === 1 ? -lane : lane;
+    for (const o of this.pool) {
+      if (o.active && o.road === sc && o.dir === dir && Math.abs(o.s - s) < 25) return;
+    }
+    this.activate(v, s, d, dir, sc);
+  }
+
+  private activate(v: Vehicle, s: number, d: number, dir: 1 | -1, road: Shortcut | null): void {
     const [lo, hi] = SPEED_KMH[v.kind];
     v.active = true;
+    v.road = road;
     v.s = s;
     v.d = v.targetD = d;
     v.dir = dir;
@@ -367,7 +424,7 @@ export class Traffic {
         if ((lineS - front) * dir > 120) break;
         continue;
       }
-      this.activate(v, s, d, dir);
+      this.activate(v, s, d, dir, null);
       v.speed = 0;
       v.homeD = homeD;
       // our way: kept until past the line; oncoming: kept until it has passed us (despawnBehind)
@@ -380,12 +437,12 @@ export class Traffic {
 
   /** Is any vehicle going `dir` overlapping [fromS, toS]? */
   anyBetween(fromS: number, toS: number, dir: 1 | -1): boolean {
-    return this.pool.some((v) => v.active && v.dir === dir && v.s - v.len / 2 < toS && v.s + v.len / 2 > fromS);
+    return this.pool.some((v) => v.active && !v.road && v.dir === dir && v.s - v.len / 2 < toS && v.s + v.len / 2 > fromS);
   }
 
   /** Is a vehicle (our direction) occupying [fromS, toS] near lateral offset d? */
   vehicleBetween(fromS: number, toS: number, d: number): boolean {
-    return this.pool.some((v) => v.active && v.dir === 1 && Math.abs(v.d - d) < 2.4 && v.s - v.len / 2 < toS && v.s + v.len / 2 > fromS);
+    return this.pool.some((v) => v.active && !v.road && v.dir === 1 && Math.abs(v.d - d) < 2.4 && v.s - v.len / 2 < toS && v.s + v.len / 2 > fromS);
   }
 
   update(dt: number): void {
@@ -398,8 +455,15 @@ export class Traffic {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = zone === 'city' || zone === 'town' ? 0.15 : 0.3;
-      if (this.activeCount(1, truck.s + 20) < wantSame) this.trySpawn(1);
-      if (this.activeCount(-1, truck.s + 20) < wantOn) this.trySpawn(-1);
+      if (this.activeCount(1, truck.s + 20, null) < wantSame) this.trySpawn(1);
+      if (this.activeCount(-1, truck.s + 20, null) < wantOn) this.trySpawn(-1);
+      // the village shortcut ahead (or the one the truck is on)
+      const sc = g.track.shortcuts.find((c) => truck.s > c.from - 500 && truck.s < c.to - 60);
+      if (sc) {
+        const [same, on] = SHORTCUT.traffic;
+        if (this.activeCount(1, truck.s + 20, sc) < same) this.trySpawnShortcut(sc, 1);
+        if (this.activeCount(-1, truck.s + 20, sc) < on) this.trySpawnShortcut(sc, -1);
+      }
     }
 
     let lead: Vehicle | null = null;
@@ -407,6 +471,8 @@ export class Traffic {
     let truckAhead = false;
     for (const v of this.pool) {
       if (!v.active) continue;
+      // off the end of the shortcut: carry on along the highway (the two meet there, so d still fits)
+      if (v.road && !v.road.contains(v.s)) v.road = null;
       lead = null;
       stopAt = null;
       truckAhead = false;
@@ -416,11 +482,11 @@ export class Traffic {
       } else {
         // follow the vehicle ahead in the same lane, bumper to bumper in a jam
         let target = v.cruise;
-        if (g.track.isBroken(v.s)) target = Math.min(target, BROKEN_ROAD.maxKmh / 3.6);
+        if (!v.road && g.track.isBroken(v.s)) target = Math.min(target, BROKEN_ROAD.maxKmh / 3.6);
         lead = null;
         let leadGap = Infinity;
         for (const o of this.pool) {
-          if (o === v || !o.active || o.dir !== v.dir || Math.abs(o.d - v.d) > 1.6) continue;
+          if (o === v || !o.active || o.road !== v.road || o.dir !== v.dir || Math.abs(o.d - v.d) > 1.6) continue;
           const gap = (o.s - v.s) * v.dir - (o.len + v.len) / 2;
           if (gap > -2 && gap < leadGap) {
             leadGap = gap;
@@ -428,7 +494,7 @@ export class Traffic {
           }
         }
         // the player's truck is traffic too: slow down and queue behind it, never drive into it
-        if (v.dir === 1 && Math.abs(truck.d - v.d) < TRUCK_LANE) {
+        if (v.dir === 1 && this.meetsTruck(v) && Math.abs(truck.d - this.worldD(v)) < TRUCK_LANE) {
           const gap = truck.rearS - (v.s + v.len / 2);
           if (gap > -2 && gap < leadGap) {
             leadGap = gap;
@@ -439,8 +505,11 @@ export class Traffic {
         const leadSpeed = truckAhead ? Math.max(0, truck.speed) : lead?.speed ?? 0;
         if ((lead || truckAhead) && leadGap < 40) target = Math.min(target, Math.max(0, leadSpeed + (leadGap - 2.5) * 0.35));
         // nobody drives through a closed barrier / gate: queue up at the stop line
+        // (none of that on the village shortcuts)
         const front = v.s + (v.dir * v.len) / 2;
-        if (v.dir === 1) {
+        if (v.road) {
+          // nothing to stop for
+        } else if (v.dir === 1) {
           const gap = this.stopLineAhead(v.s) - front;
           if (gap < 30) target = Math.min(target, Math.max(0, gap - 1.5) * 0.6);
         } else {
@@ -449,7 +518,7 @@ export class Traffic {
         }
         // toll booths, flagmen and traffic lights
         stopAt = null;
-        for (const p of g.pieces) {
+        for (const p of v.road ? [] : g.pieces) {
           if (!p.controlsTraffic) continue;
           const line = p.stopLine(v.dir);
           if (line === null) {
@@ -499,7 +568,9 @@ export class Traffic {
         }
       }
       // lane merges (toll lane, roadworks, the one open lane on the city avenue)
-      if (v.yieldTimer <= 0 && v.overtakeState !== 1 && v.stalled <= 0) {
+      if (v.road && v.yieldTimer <= 0 && v.stalled <= 0) {
+        v.targetD = v.homeD;
+      } else if (v.yieldTimer <= 0 && v.overtakeState !== 1 && v.stalled <= 0) {
         if (g.track.wideness(v.s + 30 * v.dir) > 0.5) v.homeD = -v.dir * g.track.laneD(v.s + 30 * v.dir, false);
         let guide: number | null = null;
         for (const p of g.pieces) {
@@ -520,7 +591,7 @@ export class Traffic {
           v.speed = Math.min(v.speed, lead.speed);
         }
         // (only a car that is driving up; one the truck backed up to stays put, see collide)
-        if (truckAhead && v.speed > 0.05 && truck.rearS - (v.s + v.len / 2) < 0.8 && Math.abs(truck.d - v.d) < TRUCK_LANE) {
+        if (truckAhead && v.speed > 0.05 && truck.rearS - (v.s + v.len / 2) < 0.8 && Math.abs(truck.d - this.worldD(v)) < TRUCK_LANE) {
           v.s = truck.rearS - v.len / 2 - 0.8;
           v.speed = Math.min(v.speed, Math.max(0, truck.speed));
         }
@@ -533,15 +604,16 @@ export class Traffic {
       // Writing is unreadable far away: skip those draw calls
       v.art.visible = rel > -40 && rel < 170;
       const pinned = v.pinUntil > v.s;
-      if (rel < -TRAFFIC.despawnBehind || (!pinned && (rel > TRAFFIC.spawnAheadMax + 80 || (this.excluded(v.s) && Math.abs(rel) > 120)))) {
+      if (rel < -TRAFFIC.despawnBehind || (!pinned && (rel > TRAFFIC.spawnAheadMax + 80 || (!v.road && this.excluded(v.s) && Math.abs(rel) > 120)))) {
         v.active = false;
         v.mesh.visible = false;
         continue;
       }
 
-      const y = g.track.surfaceY(v.s) + Math.sin(Math.min(1, v.hop) * Math.PI) * 0.6;
-      v.mesh.position.set(g.track.centerX(v.s) + v.d, y, -v.s);
-      v.mesh.rotation.y = (v.dir === 1 ? 0 : Math.PI) - g.track.headingAt(v.s) - (v.targetD - v.d) * 0.05 * v.dir;
+      const road = v.road ?? g.track;
+      const y = road.surfaceY(v.s) + Math.sin(Math.min(1, v.hop) * Math.PI) * 0.6;
+      v.mesh.position.set(road.centerX(v.s) + v.d, y, -v.s);
+      v.mesh.rotation.y = (v.dir === 1 ? 0 : Math.PI) - road.headingAt(v.s) - (v.targetD - v.d) * 0.05 * v.dir;
 
       this.collide(v);
     }
@@ -550,11 +622,13 @@ export class Traffic {
   private collide(v: Vehicle): void {
     const g = this.game;
     const t = g.truck;
-    const rel = t.heading - g.track.headingAt(t.s);
+    if (!this.meetsTruck(v)) return;
+    const rel = t.heading - t.roadHeading(t.s);
     const thl = TRUCK.length / 2;
     const thw = TRUCK.width / 2 + Math.abs(Math.sin(rel)) * thl * 0.8;
     const ds = v.s - t.s;
-    const dd = v.d - t.d;
+    const vd = this.worldD(v);
+    const dd = vd - t.d;
     const ovS = thl + v.len / 2 - Math.abs(ds);
     const ovD = thw + v.wid / 2 - Math.abs(dd);
     if (ovS <= 0 || ovD <= 0) return;
@@ -611,7 +685,7 @@ export class Traffic {
       }
     } else {
       // side swipe
-      const push = Math.sign(t.d - v.d || -1);
+      const push = Math.sign(t.d - vd || -1);
       t.shiftLateral(push * Math.min(ovD, 0.8));
       t.speed *= 0.85;
       g.cam.shake(0.5);
@@ -624,8 +698,8 @@ export class Traffic {
 
   /** Light vehicles comically hop to the roadside and stall — nobody gets hurt. */
   private knockAside(v: Vehicle, truckD: number): void {
-    const hw = this.game.track.halfWidth(v.s);
-    v.targetD = (v.d < truckD ? -1 : 1) * (hw + ROAD.shoulder - 0.4);
+    const hw = v.road ? SHORTCUT.halfWidth + SHORTCUT.shoulder : this.game.track.halfWidth(v.s) + ROAD.shoulder;
+    v.targetD = (this.worldD(v) < truckD ? -1 : 1) * (hw - 0.4);
     v.stalled = 4;
     v.hop = 1;
   }
