@@ -92,6 +92,10 @@ All numbers live in `src/config/`:
   bumper stickers. All the lines are in `world/VehicleArt.ts`.
 - **Billboards:** 19 illustrated parody billboards on both sides of the road (`BILLBOARDS` in
   `world/Scenery.ts`). Every brand is made up.
+- **Exhaust smoke** (`EXHAUST` in `tuning.ts`, `world/Exhaust.ts`): every motor vehicle puffs black
+  smoke from its tailpipe. Buses and trucks puff the most, and pedal rickshaws don't smoke at all. Your
+  truck's smoke comes out of a stack behind the cab. It puffs a thick cloud when the engine starts and
+  when you floor it from low speed. All the puffs share one pooled point cloud.
 - **Pedestrians:** they open umbrellas when it rains and carry flashlights after dark.
 - **Slow zones** (`SLOW_ZONES` in `tuning.ts`): every bazaar (40 km/h), 2–3 random schools (30 km/h) and
   the Karwan Bazar approach (30 km/h). Each has signs, and schools also get a school building, kids
@@ -104,9 +108,21 @@ All numbers live in `src/config/`:
 ## Bridges
 
 - **Jamuna and Lalon Shah:** concrete box-girder bridges on twin piers, with a name arch over the road.
+  - **Jamuna** carries its railway along the left (north) edge of the deck, as the real bridge does. The
+    track also runs beside the road for 2 km before and after the bridge, then curves away. One train
+    always comes by on the approach, and 65% of the time a second one crosses the bridge while you do.
+    Trains sound their horn and the wheels clatter as they pass.
+  - **Lalon Shah** has the old **Hardinge Bridge** (1915) on its left. It's a railway bridge of steel
+    Pettit through trusses, with curved top chords on stone well piers, and a double track on high banks
+    at each end.
 - **Padma:** modelled on the real double-deck design. The road runs on top of a deep grey steel Warren
   truss, the two-track railway deck is enclosed inside the truss, and it stands on massive piers.
-  The deck is 22 m up, reached by long approach ramps, with a roadside name monument.
+  The deck is 22 m up, with a roadside name monument. The approaches are open viaducts on piers. At each
+  end, the railway's own viaduct comes in from the left and slips under the road into the truss, and
+  trains run on it too.
+
+The railway lines and trains are in `world/Railway.ts` (`TRAINS` and `HARDINGE` in `tuning.ts`). Route
+generation keeps the railway's stretch (`bridge.rail` in `route.ts`) clear of other events.
 
 - **Shah Amanat (Karnaphuli):** modelled on the real extradosed bridge. A prestressed concrete box
   girder over 115 + 3 × 200 + 115 m spans (scaled), deeper at the four short pylons. The pylons stand in

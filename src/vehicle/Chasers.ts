@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
-import { CHASE, EVENTS, TRUCK, WORLD } from '../config/tuning';
+import { CHASE, EVENTS, EXHAUST, TRUCK, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { toBnDigits } from '../utils/bnNumber';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
@@ -170,6 +170,7 @@ export class Chasers {
       const road = t.road?.contains(u.s) ? t.road : g.track;
       u.mesh.position.set(g.track.centerX(u.s) + u.d, road.surfaceY(u.s), -u.s);
       u.mesh.rotation.set(Math.sin(this.t * 3 + u.phase) * 0.01, (u.facing === 1 ? 0 : Math.PI) - road.headingAt(u.s), u.pickup ? 0 : Math.sin(this.t * 1.5 + u.phase) * 0.12);
+      g.exhaust.emit(dt, u.mesh.position.x, u.mesh.position.y, u.mesh.position.z, u.mesh.rotation.y, u.speed, u.pickup ? EXHAUST.traffic.pickup : EXHAUST.traffic.bike);
     }
     if (this.state === 'leaving' && !this.units.some((u) => u.active)) this.state = 'idle';
   }

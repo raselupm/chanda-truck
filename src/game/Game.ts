@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Sound } from '../audio/Sound';
 import { ECONOMY } from '../config/economy';
-import { TRAFFIC } from '../config/tuning';
+import { EXHAUST, TRAFFIC } from '../config/tuning';
 import { DEFAULT_START_ID, generateRoute, START_POINTS, type FarmEvent, type RouteDef } from '../config/route';
 import { VEGETABLES, type VegId } from '../config/vegetables';
 import { player, submitRun } from '../net/leaderboard';
@@ -30,6 +30,7 @@ import { Roadworks } from '../world/Roadworks';
 import { Mud } from '../world/Mud';
 import { Thieves } from '../world/Thieves';
 import { Environment } from '../world/Environment';
+import { Exhaust } from '../world/Exhaust';
 import { Pedestrians } from '../world/Pedestrians';
 import { RailCrossing } from '../world/RailCrossing';
 import { SlowZones } from '../world/SlowZones';
@@ -84,6 +85,9 @@ export class Game {
   private ads = new AdBoards();
   private shortcuts: ShortcutRoads;
   private hillRoad = new HillRoad(this);
+  readonly exhaust = new Exhaust();
+  /** seconds of heavy smoke left from the engine starting */
+  private smokeKick = 0;
   /** fell off the hill road: which side, and for how long (the truck tumbles into the valley) */
   private fallSide: -1 | 0 | 1 = 0;
   private fallT = 0;
@@ -132,7 +136,7 @@ export class Game {
     this.mud = new Mud(this);
     this.clutter = new CityClutter(this.track);
     this.shortcuts = new ShortcutRoads(this);
-    scene.add(this.shortcuts.group, this.hillRoad.group);
+    scene.add(this.shortcuts.group, this.hillRoad.group, this.exhaust.points);
     scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group, this.ads.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
@@ -268,6 +272,8 @@ export class Game {
 
     this.state.force('FARM');
     this.sound.engineStart();
+    this.exhaust.reset();
+    this.smokeKick = EXHAUST.player.startKick;
     this.hud.setRoute(this.route);
     this.hud.show(true);
     this.touch.show(true);
@@ -295,6 +301,7 @@ export class Game {
     this.traffic.reset();
     this.thieves.reset();
     this.mud.reset();
+    this.exhaust.reset();
     this.state.force('MENU');
     this.menu.show(true);
   }
@@ -415,8 +422,8 @@ export class Game {
       lines: [{ category: 'FINE', amount, labelBn: `গতিসীমা ${toBnDigits(limitKmh)}, চলছিল ${toBnDigits(Math.round(kmh))} কিমি/ঘণ্টা` }],
       locationBn,
     });
-    this.sound.beep();
-    this.hud.warn(`{camera} স্পিড ক্যামেরা! ${toBnDigits(Math.round(kmh))} কিমি/ঘণ্টা — জরিমানা ${formatTaka(amount)}`, 'danger', 3.5);
+    this.sound.alarm();
+    this.hud.warn(`{camera} স্পিড ক্যামেরা! ${toBnDigits(Math.round(kmh))} কিমি/ঘণ্টা — জরিমানা ${formatTaka(amount)}`, 'fine', 3.5);
   }
 
   damageCargo(pct: number, labelBn: string, locationBn: string): void {
@@ -509,6 +516,19 @@ export class Game {
   bypasses(s: number): boolean {
     const r = this.truck.road;
     return !!r && !r.inMouth(this.truck.s) && s > r.from && s < r.to;
+  }
+
+  /** Black smoke from the truck's tailpipe: a cloud when the engine starts or when it's floored from low speed. */
+  private truckSmoke(dt: number): void {
+    const P = EXHAUST.player;
+    const t = this.truck;
+    this.smokeKick = Math.max(0, this.smokeKick - dt);
+    const throttle = this.modal ? 0 : this.input.throttle;
+    // hardest pulling at low speed, easing off near top speed
+    const pull = Math.max(this.smokeKick / P.startKick, throttle * Math.max(0, 1 - t.kmh / 110));
+    const m = this.truckModel.root;
+    this.exhaust.emit(dt, m.position.x, m.position.y, m.position.z, m.rotation.y, t.speed, P,
+      P.rate + (P.accelRate - P.rate) * pull, P.size + (P.accelSize - P.size) * pull, P.alpha + (P.accelAlpha - P.alpha) * pull);
   }
 
   /** The truck rolls over the edge and down the slope into the valley (the camera stays on the road). */
@@ -620,6 +640,11 @@ export class Game {
       p.group.visible = t.s > a && t.s < b;
     }
     this.truckModel.update(dt, t.x, t.y, t.z, t.heading, t.pitch, t.speed, t.steer, t.yawRate, t.bump);
+    if (!this.state.paused) {
+      const driving = phase === 'FARM' || phase === 'HIGHWAY' || phase === 'ARRIVAL';
+      if (driving && !this.fallSide) this.truckSmoke(dt);
+      this.exhaust.update(dt);
+    }
     if (this.fallSide) this.tumble(dt);
     this.cam.update(dt, t);
     if (!this.state.paused) this.weather.update(dt);

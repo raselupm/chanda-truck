@@ -214,8 +214,9 @@ export class RoadStreamer {
         // parapets, and side faces down to the girder's bottom (or to the ground on the low ramp)
         const el0 = t.elevation(s0);
         const el1 = t.elevation(s1);
-        const bot0 = Math.max(-el0 + 0.02, -SHORTCUT.girder);
-        const bot1 = Math.max(-el1 + 0.02, -SHORTCUT.girder);
+        const girder = t.isViaduct(sm) ? 1.9 : SHORTCUT.girder;
+        const bot0 = Math.max(-el0 + 0.02, -girder);
+        const bot1 = Math.max(-el1 + 0.02, -girder);
         const pt = top + PARAPET_H;
         for (const side of [-1, 1]) {
           const a0 = side * (hw0 + sh);
@@ -226,7 +227,7 @@ export class RoadStreamer {
           sb.quad(s0, s1, a0, b0, a1, b1, pt, pt, pt, pt, C.parapetTop);
           sb.quad(s0, s1, b0, b0, b1, b1, pt, bot0, pt, bot1, C.concrete);
         }
-        if (bot0 === -SHORTCUT.girder || bot1 === -SHORTCUT.girder) {
+        if (bot0 === -girder || bot1 === -girder) {
           const w0 = hw0 + sh + PARAPET_W;
           const w1 = hw1 + sh + PARAPET_W;
           sb.quad(s0, s1, -w0, w0, -w1, w1, bot0, bot0, bot1, bot1, C.bridgeUnder);

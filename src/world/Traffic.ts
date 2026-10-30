@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
-import { BROKEN_ROAD, CITY, HILL, ROAD, SHORTCUT, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
+import { BROKEN_ROAD, CITY, EXHAUST, HILL, ROAD, SHORTCUT, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
 import { clamp, damp } from '../utils/math';
@@ -617,6 +617,10 @@ export class Traffic {
       const y = road.surfaceY(v.s) + Math.sin(Math.min(1, v.hop) * Math.PI) * 0.6;
       v.mesh.position.set(road.centerX(v.s) + v.d, y, -v.s);
       v.mesh.rotation.y = (v.dir === 1 ? 0 : Math.PI) - road.headingAt(v.s) - (v.targetD - v.d) * 0.05 * v.dir;
+      // pedal rickshaws have no engine
+      if (v.kind !== 'rickshaw' && Math.abs(rel) < EXHAUST.range) {
+        g.exhaust.emit(dt, v.mesh.position.x, v.mesh.position.y, v.mesh.position.z, v.mesh.rotation.y, v.speed, EXHAUST.traffic[v.kind]);
+      }
 
       this.collide(v);
     }

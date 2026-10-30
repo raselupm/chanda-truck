@@ -122,6 +122,8 @@
 }
 .warn.show { opacity: 1; transform: translate(-50%, 0); }
 .warn.danger { animation: shake .4s 2; }
+/* speed camera fine: red text */
+.warn.fine { color: #ff3b30; animation: shake .4s 2; }
 @keyframes shake { 25% { margin-left: -6px; } 75% { margin-left: 6px; } }
 
 .toast {

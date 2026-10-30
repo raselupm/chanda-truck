@@ -232,6 +232,40 @@ export const ENGINE_SOUND = {
 /** Recorded crash for the run-ending crashes (head-on, falling into the valley); others are synthesised. */
 export const FINAL_CRASH_SOUND = { url: '/sounds/final-crash.m4a', volume: 0.9 } as const;
 
+/**
+ * Black exhaust smoke. pipe = tailpipe (the player's: top of the stack behind the cab) in the model's own space (models face -Z, so the rear is +z);
+ * rate = puffs per second, size = puff width (m) as it leaves the pipe, alpha = how black it starts.
+ * Pedal rickshaws have no engine, so no smoke.
+ */
+export const EXHAUST = {
+  /** seconds a puff lasts */
+  life: 1.7,
+  /** a puff swells to this many times its size */
+  swell: 4,
+  /** only vehicles this close to the truck smoke */
+  range: 170,
+  player: {
+    pipe: [1.33, 3.65, -1.75] as [number, number, number],
+    rate: 7,
+    size: 0.55,
+    alpha: 0.4,
+    /** flooring it from low speed: thick black clouds */
+    accelRate: 26,
+    accelSize: 0.9,
+    accelAlpha: 0.5,
+    /** seconds of heavy smoke when the engine starts */
+    startKick: 1.6,
+  },
+  traffic: {
+    bus: { pipe: [0.8, 0.45, 5.55], rate: 12, size: 0.75, alpha: 0.55 },
+    truck: { pipe: [0.8, 0.45, 4.3], rate: 12, size: 0.75, alpha: 0.6 },
+    car: { pipe: [0.55, 0.3, 2.25], rate: 4, size: 0.35, alpha: 0.3 },
+    cng: { pipe: [0.35, 0.35, 1.35], rate: 7, size: 0.35, alpha: 0.45 },
+    bike: { pipe: [0.22, 0.4, 0.95], rate: 5, size: 0.25, alpha: 0.38 },
+    pickup: { pipe: [0.6, 0.35, 2.55], rate: 7, size: 0.45, alpha: 0.45 },
+  },
+} as const;
+
 export const CAMERA = {
   distance: 13,
   height: 5.6,
@@ -266,6 +300,18 @@ export const SLOW_ZONES = {
   /** km/h over the limit before the "slow down" warning fires */
   tolerance: 5,
 } as const;
+
+/** Passenger trains on the railways beside Jamuna and Padma bridges (world/Railway.ts). */
+export const TRAINS = {
+  /** m/s along the line (~72 km/h) */
+  speed: 20,
+  coaches: 8,
+  /** chance a second train crosses the bridge alongside the truck */
+  bridgeChance: 0.65,
+} as const;
+
+/** The old Hardinge railway bridge beside Lalon Shah Bridge: how far left, and its rail height. */
+export const HARDINGE = { offset: -160, railY: 9 } as const;
 
 export const RAIL = {
   /** level crossings per route */

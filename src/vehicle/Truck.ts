@@ -50,6 +50,9 @@ export class Truck {
       { geo: box(0.5, 0.6, 0.05), color: 0x111111, p: [0.95, 0.55, 3.35] },
       { geo: box(0.3, 0.15, 0.06), color: 0xff3b30, p: [-1.0, 1.05, 4.16] },
       { geo: box(0.3, 0.15, 0.06), color: 0xff3b30, p: [1.0, 1.05, 4.16] },
+      // exhaust stack on the back corner of the cab (EXHAUST.player.pipe is its top)
+      { geo: cyl(0.09, 0.09, 2.5, 8), color: 0x3a3a3a, p: [1.33, 2.35, -1.75] },
+      { geo: cyl(0.11, 0.11, 0.35, 8), color: 0x9a9a9a, p: [1.33, 3.45, -1.75] },
       // front bumper
       { geo: box(2.55, 0.32, 0.25), color: 0xc1121f, p: [0, 0.82, -4.0] },
     ];

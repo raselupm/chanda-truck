@@ -147,7 +147,7 @@ export class HUD {
     }
   }
 
-  warn(text: string, kind: 'danger' | 'info' | 'good', seconds = 3): void {
+  warn(text: string, kind: 'danger' | 'fine' | 'info' | 'good', seconds = 3): void {
     setText(this.warnEl, text);
     this.warnEl.className = `warn show ${kind}`;
     this.warnTimer = seconds;

@@ -375,7 +375,12 @@ export class Track {
 
   /** On the highway's flyover (deck or ramp, off the ground): parapets, no verge to drive on. */
   isFlyover(s: number): boolean {
-    return this.elevation(s) > 0.3 && this.nearFlyover(s, 0);
+    return this.elevation(s) > 0.3 && (this.nearFlyover(s, 0) || this.isViaduct(s));
+  }
+
+  /** Padma's approaches: an open viaduct on piers (its railway runs in underneath), not an earth bank. */
+  isViaduct(s: number): boolean {
+    return this.bridges.some((b) => b.style === 'padma' && s >= b.start - b.ramp && s <= b.end + b.ramp && (s < b.start || s > b.end));
   }
 
   shortcutAt(s: number): Shortcut | undefined {

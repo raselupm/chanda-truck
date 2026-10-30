@@ -44,6 +44,8 @@ export interface TollEvent extends EventBase {
     /** metres from the toll stop line to the bridge start */
     offset: number;
     length: number;
+    /** metres of railway beside the road before and after the bridge (kept clear of other events) */
+    rail?: number;
   };
 }
 
@@ -142,11 +144,11 @@ const NATORE: LegalStop = {
 };
 const JAMUNA: LegalStop = {
   id: 'jamuna', type: 'bridgeToll', feeKey: 'jamunaToll', nameBn: 'যমুনা সেতু টোল', icon: '{bridge}',
-  bridge: { nameBn: 'যমুনা সেতু', style: 'jamuna', offset: 300, length: 650 },
+  bridge: { nameBn: 'যমুনা সেতু', style: 'jamuna', offset: 300, length: 650, rail: 2_000 },
 };
 const PADMA: LegalStop = {
   id: 'padma', type: 'bridgeToll', feeKey: 'padmaToll', nameBn: 'পদ্মা সেতু টোল', icon: '{bridge}',
-  bridge: { nameBn: 'পদ্মা সেতু', style: 'padma', offset: 520, length: 760 },
+  bridge: { nameBn: 'পদ্মা সেতু', style: 'padma', offset: 520, length: 760, rail: 1_300 },
 };
 const SHAH_AMANAT: LegalStop = {
   id: 'shahAmanat', type: 'bridgeToll', feeKey: 'shahAmanatToll', nameBn: 'শাহ আমানত সেতু টোল', icon: '{bridge}',
@@ -322,8 +324,11 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
         s += range(rng, ...LAYOUT.afterBarrier);
       }
     } else {
+      // room for the railway beside the bridge's approaches (nothing else may stand on it)
+      const rail = item.bridge?.rail ?? 0;
+      s += Math.max(0, rail - (item.bridge?.offset ?? 0));
       events.push({ ...item, s });
-      if (item.bridge) s += item.bridge.offset + item.bridge.length + range(rng, ...LAYOUT.afterBridge);
+      if (item.bridge) s += item.bridge.offset + item.bridge.length + rail + range(rng, ...LAYOUT.afterBridge);
       else s += range(rng, ...LAYOUT.afterToll);
     }
   });
@@ -357,8 +362,10 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   ];
   for (const e of events) {
     if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
-    const end = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.s + e.bridge.offset + e.bridge.length + 250 : e.s + 300;
-    busy.push([e.s - 450, end]);
+    const br = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.bridge : null;
+    const rail = br?.rail ?? 0;
+    const end = br ? e.s + br.offset + br.length + rail + 250 : e.s + 300;
+    busy.push([Math.min(e.s - 450, e.s + (br?.offset ?? 0) - rail - 200), end]);
   }
   const schools = SLOW_ZONES.schoolsMin + Math.floor(rng() * (SLOW_ZONES.schoolsMax - SLOW_ZONES.schoolsMin + 1));
   for (let tries = 0; tries < 60 && slowZones.filter((z) => z.kind === 'school').length < schools; tries++) {

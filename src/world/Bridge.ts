@@ -1,11 +1,14 @@
 // Long multi-span river bridge with piers, railings, lamps, water, sandbars and country boats.
+// Railways: Jamuna carries one along its left edge, Padma inside its truss under the road (its rail viaducts
+// come in from the left), and the old Hardinge railway bridge stands to the left of Lalon Shah.
 
 import * as THREE from 'three';
-import { ROAD } from '../config/tuning';
+import { HARDINGE, ROAD, TRAINS } from '../config/tuning';
 import type { TollEvent } from '../config/route';
 import type { Game } from '../game/Game';
 import { box, buildColored, cyl, vertexColorMaterial, type Part } from '../utils/geometry';
 import { canvasTexture, signTexture } from '../utils/textures';
+import { ease, RailLine, Train, type RailPath, type RailSupport } from './Railway';
 import { boatHullGeometry } from './VehicleModels';
 import { SetPiece } from './SetPiece';
 import type { BridgeSpan } from './Track';
@@ -44,6 +47,12 @@ export class Bridge extends SetPiece<TollEvent> {
   private boats: Boat[] = [];
   private boatMesh: THREE.InstancedMesh;
   private t = 0;
+  /** railway lines beside / under the bridge, and the trains on the first one */
+  private lines: RailLine[] = [];
+  private trains: Train[] = [];
+  private firstTrain = false;
+  /** whether a train will cross the bridge alongside the truck this time */
+  private bridgeTrain = Math.random() < TRAINS.bridgeChance;
 
   constructor(event: TollEvent, game: Game) {
     super(event, game);
@@ -87,6 +96,8 @@ export class Bridge extends SetPiece<TollEvent> {
         for (const d of [-hw * 0.55, hw * 0.55]) parts.push({ geo: cyl(1.0, 1.2, slab + 2, 10), color: 0xb9b3a6, p: [d, (slab - 2) / 2, -s] });
         parts.push({ geo: box(edge * 2 - 1, 1.2, 2.2), color: 0xaaa497, p: [0, slab - 0.5, -s] });
       }
+      if (style === 'jamuna') this.jamunaRail(parts, start, len, deckY, slab, edge);
+      if (style === 'lalon') this.hardinge(parts, start, len);
     }
     for (const side of [-1, 1]) {
       parts.push({ geo: box(0.4, 0.5, len), color: 0xd8d2c4, p: [side * (edge - 0.2), deckY + 0.25, -(start + len / 2)] });
@@ -130,6 +141,7 @@ export class Bridge extends SetPiece<TollEvent> {
         parts.push({ geo: box(tx * 2, 0.6, 0.6), color: steelDark, p: [0, bot + 0.3, -s] });
       }
       parts.push({ geo: box(tx * 2 - 0.6, 0.5, len), color: 0xa9a49a, p: [0, bot + 0.75, -(start + len / 2)] });
+      this.padmaRail(parts, bot + 1.0);
       for (const rx of [-2.3, -0.8, 0.8, 2.3]) parts.push({ geo: box(0.12, 0.15, len), color: 0x5d5d5d, p: [rx, bot + 1.08, -(start + len / 2)] });
       // Piers: tall concrete columns with a wide cap under the bottom chord
       for (let s = start + 75; s < end - 30; s += 150) {
@@ -141,6 +153,24 @@ export class Bridge extends SetPiece<TollEvent> {
     const structure = new THREE.Mesh(buildColored(parts), mat);
     structure.frustumCulled = false;
     this.group.add(structure);
+    for (const line of this.lines) {
+      this.group.add(line.mesh);
+      // nothing else may stand on the railway
+      const p = line.path;
+      for (let s = p.from; s < p.to; s += 40) {
+        const a = p.x(s) - track.centerX(s);
+        const b = p.x(s + 40) - track.centerX(s + 40);
+        track.propBlocks.push({ from: s, to: s + 40, dMin: Math.min(a, b) - 8, dMax: Math.max(a, b) + 8 });
+      }
+    }
+    // Jamuna and Padma: passenger trains (Hardinge stays a view)
+    if (style === 'jamuna' || style === 'padma') {
+      for (let i = 0; i < 2; i++) {
+        const tr = new Train(this.lines[0], TRAINS.coaches);
+        this.trains.push(tr);
+        this.group.add(tr.group);
+      }
+    }
 
     // Name: an arch over the road (Jamuna, Lalon) or a big roadside monument (Padma)
     const nameTex = signTexture([`${nameBn}-এ স্বাগতম`], { bg: '#1f7a3d', fg: '#fff', w: 1024, h: 180, sizes: [90] });
@@ -272,12 +302,195 @@ export class Bridge extends SetPiece<TollEvent> {
     track.propBlocks.push({ from: start - ramp, to: start + len + ramp, dMin: edge + 1, dMax: tx + edge + 6 });
   }
 
+  /** distance outside the bridge (0 on it) */
+  private outside(s: number): number {
+    return s < this.span.start ? this.span.start - s : s > this.span.end ? s - this.span.end : 0;
+  }
+
+  /** A railway reaching `reach` metres beyond each end, shaped by u = distance outside the bridge. */
+  private railPath(
+    offset: (u: number) => number,
+    y: (u: number, s: number) => number,
+    support: (u: number, y: number) => RailSupport,
+    reach: number,
+    tracks = [0],
+  ): RailPath {
+    const track = this.game.track;
+    return {
+      from: this.span.start - reach,
+      to: this.span.end + reach,
+      x: (s) => track.centerX(s) + offset(this.outside(s)),
+      y: (s) => y(this.outside(s), s),
+      support: (s) => support(this.outside(s), y(this.outside(s), s)),
+      tracks,
+    };
+  }
+
+  /**
+   * Jamuna (Bangabandhu) Bridge: the railway runs along the north edge of the deck, on the driver's left.
+   * Off the bridge it runs beside the road for 2 km each way, then curves away into the fields.
+   */
+  private jamunaRail(parts: Part[], start: number, len: number, deckY: number, slab: number, edge: number): void {
+    const R = this.event.bridge!.rail ?? 2000;
+    const rx = -(edge + 3);
+    // the rail deck beside the road deck, its outer parapet, and wider pier heads under it
+    parts.push({ geo: box(6, 1.9, len), color: 0xbdb6a8, p: [rx, deckY - 0.95, -(start + len / 2)] });
+    parts.push({ geo: box(0.4, 1.0, len), color: 0xd8d2c4, p: [rx - 2.8, deckY + 0.5, -(start + len / 2)] });
+    for (let s = start + 25; s < start + len - 10; s += 50) {
+      parts.push({ geo: cyl(0.9, 1.1, slab + 2, 10), color: 0xb9b3a6, p: [rx, (slab - 2) / 2, -s] });
+      parts.push({ geo: box(6.4, 1.2, 2.2), color: 0xaaa497, p: [rx, slab - 0.5, -s] });
+    }
+    const track = this.game.track;
+    // on its own bank, as high as the road's ramp
+    this.lines.push(new RailLine(this.railPath(
+      (u) => ease(u, [[60, rx], [260, -28], [R - 450, -28], [R, -330]]),
+      (u, s) => (u === 0 ? deckY + 0.45 : Math.max(0.7, track.elevation(s) + ROAD.top + 0.45)),
+      (u) => (u === 0 ? 'deck' : 'bank'),
+      R,
+    )));
+  }
+
+  /**
+   * Padma Bridge: the railway is inside the truss under the road. At each end its own viaduct comes in
+   * from the left, high enough to slip in under the road's approach viaduct, and runs on into the fields.
+   */
+  private padmaRail(parts: Part[], railY: number): void {
+    const R = this.event.bridge!.rail ?? 1300;
+    const track = this.game.track;
+    const { start, end, ramp } = this.span;
+    const line = new RailLine(this.railPath(
+      (u) => ease(u, [[10, -1.55], [110, -14], [420, -45], [750, -60], [R, -420]]),
+      (u) => ease(u, [[650, railY], [R - 80, 0.8]]),
+      (u, y) => (u === 0 ? 'none' : y > 2 ? 'viaduct' : 'bank'),
+      R,
+    ));
+    this.lines.push(line);
+    // piers under the road's approach viaducts (out of the railway's way)
+    const hw = track.halfWidth(start);
+    for (const [a, b] of [[start - ramp, start], [end, end + ramp]]) {
+      for (let s = a + 19; s < b; s += 38) {
+        const el = track.elevation(s);
+        if (el < 2.5) continue;
+        const h = el + ROAD.top - 1.9;
+        let both = true;
+        for (const side of [-1, 1]) {
+          const x = track.centerX(s) + side * (hw - 1.5);
+          if (Math.abs(line.path.x(s) - x) < 4.6 && line.path.y(s) < h) {
+            both = false;
+            continue;
+          }
+          parts.push({ geo: box(1.6, h, 1.6), color: 0xc2bcae, p: [x, h / 2, -s] });
+        }
+        // a cross-head only where the train can't hit it
+        if (both || line.path.y(s) + 5.2 < h - 0.8) parts.push({ geo: box(hw * 2 + 1, 0.8, 2), color: 0xaaa497, p: [track.centerX(s), h - 0.4, -s] });
+      }
+    }
+  }
+
+  /**
+   * Hardinge Bridge (1915), the railway bridge over the Padma right beside Lalon Shah Bridge: steel
+   * through trusses of the Pettit type, their curved, many-sided top chords rising to the middle of each
+   * ~105 m span, on massive stone well piers, with a double track on high banks at each end.
+   */
+  private hardinge(parts: Part[], start: number, len: number): void {
+    const X = HARDINGE.offset;
+    const Y = HARDINGE.railY;
+    const n = Math.max(3, Math.round(len / 105));
+    const L = len / n;
+    const panels = 10;
+    const P = L / panels;
+    const half = 4.8;
+    const steel = 0x7b858b;
+    const dark = 0x5f686e;
+    const bot = Y - 0.5;
+    const H = (i: number) => (i === 0 || i === panels ? 0 : 10 + 4 * Math.sin((Math.PI * i) / panels));
+    const member = (x: number, y0: number, z0: number, y1: number, z1: number, t: number, color: number) => {
+      const dy = y1 - y0;
+      const dz = z1 - z0;
+      parts.push({ geo: box(t, t, Math.hypot(dy, dz)), color, p: [x, (y0 + y1) / 2, (z0 + z1) / 2], r: [Math.atan2(-dy, dz), 0, 0] });
+    };
+    for (let k = 0; k < n; k++) {
+      const z = (i: number) => -(start + k * L + i * P);
+      for (const side of [-1, 1]) {
+        const x = X + side * half;
+        parts.push({ geo: box(0.7, 1.0, L - 0.4), color: steel, p: [x, bot, -(start + k * L + L / 2)] });
+        for (let i = 0; i < panels; i++) {
+          member(x, bot + H(i), z(i), bot + H(i + 1), z(i + 1), 0.85, steel);
+          if (i > 0) parts.push({ geo: box(0.45, H(i), 0.45), color: dark, p: [x, bot + H(i) / 2, z(i)] });
+          // diagonals slope down toward the middle of the span, with half-height sub-struts (Pettit)
+          if (i > 0 && i < panels - 1) {
+            const [a, b] = i < panels / 2 ? [i, i + 1] : [i + 1, i];
+            member(x, bot + H(a), z(a), bot, z(b), 0.42, dark);
+            const mid = (z(a) + z(b)) / 2;
+            member(x, bot + H(a) / 2, mid, bot, z(a), 0.3, dark);
+          }
+        }
+      }
+      // top bracing, the portals at the inclined end posts, floor beams and the deck
+      for (let i = 1; i < panels; i++) {
+        parts.push({ geo: box(half * 2, 0.4, 0.4), color: dark, p: [X, bot + H(i), z(i)] });
+        parts.push({ geo: box(half * 2, 0.6, 0.5), color: dark, p: [X, bot - 0.3, z(i)] });
+      }
+      for (const i of [1, panels - 1]) parts.push({ geo: box(half * 2, 1.4, 0.35), color: steel, p: [X, bot + H(i) - 1.1, z(i)] });
+      parts.push({ geo: box(half * 2 + 0.4, 0.5, L), color: 0x6d6a64, p: [X, Y - 0.7, -(start + k * L + L / 2)] });
+    }
+    // stone well piers with rounded cutwaters
+    for (let j = 0; j <= n; j++) {
+      const s = start + j * L;
+      const h = bot - 0.6;
+      parts.push({ geo: box(half * 2 + 2, h + 1, 5), color: 0xb7a68a, p: [X, (h - 1) / 2, -s] });
+      for (const side of [-1, 1]) parts.push({ geo: cyl(2.5, 2.5, h + 1, 12), color: 0xb7a68a, p: [X + side * (half + 1), (h - 1) / 2, -s] });
+      parts.push({ geo: box(half * 2 + 6, 0.8, 5.8), color: 0x9d8e76, p: [X, h - 0.2, -s] });
+    }
+    this.lines.push(new RailLine(this.railPath(
+      (u) => ease(u, [[150, X], [800, -600]]),
+      (u) => ease(u, [[120, Y], [520, 0.8]]),
+      (u) => (u === 0 ? 'deck' : 'bank'),
+      900,
+      [-2.1, 2.1],
+    )));
+    // its name, facing the road
+    const board = this.own(new THREE.Mesh(
+      new THREE.PlaneGeometry(26, 4.4),
+      new THREE.MeshLambertMaterial({ map: signTexture(['হার্ডিঞ্জ ব্রিজ (১৯১৫)'], { bg: '#f2efe6', fg: '#1d1d1d', w: 1024, h: 172, sizes: [110] }) }),
+    ));
+    board.position.set(X + half + 0.3, bot + 14.5, -(start + L / 2));
+    board.rotation.y = Math.PI / 2;
+    this.group.add(board);
+  }
+
   get blocking(): boolean {
     return false;
   }
 
   visibleRange(): [number, number] {
-    return [this.span.start - 900, this.span.end + 300];
+    const reach = Math.max(900, ...this.lines.map((l) => this.span.start - l.path.from + 200));
+    return [this.span.start - reach, this.span.end + Math.max(300, reach - 600)];
+  }
+
+  /**
+   * One train always comes by on the approach (oncoming, or one the truck catches up with), and sometimes
+   * a second one crosses the bridge as the truck does.
+   */
+  private runTrains(dt: number): void {
+    const g = this.game;
+    const line = this.lines[0];
+    if (!this.trains.length || !line) return;
+    const t = g.truck.s;
+    const { start, end } = this.span;
+    if (g.state.phase === 'HIGHWAY') {
+      const free = this.trains.find((tr) => !tr.active);
+      if (!this.firstTrain && free && t > line.path.from + 100 && t < start - 800) {
+        this.firstTrain = true;
+        const a = line.arcAt(t);
+        if (Math.random() < 0.5) free.run(a + 800, -1, TRAINS.speed);
+        else free.run(a + 420, 1, TRAINS.speed * 0.75);
+      } else if (this.bridgeTrain && free && t > start - 520 && t < start) {
+        this.bridgeTrain = false;
+        free.run(line.arcAt(end + 260), -1, TRAINS.speed);
+      }
+    }
+    for (const tr of this.trains) tr.update(dt, g);
   }
 
   private updateBoats(dt: number): void {
@@ -305,6 +518,7 @@ export class Bridge extends SetPiece<TollEvent> {
     this.waterTex.offset.x = this.t * 0.01;
     this.waterTex.offset.y = Math.sin(this.t * 0.3) * 0.01;
     this.updateBoats(dt);
+    this.runTrains(dt);
     const s = this.game.truck.s;
     const { start, end } = this.span;
     const dist = s < start ? start - s : s > end ? s - end : 0;

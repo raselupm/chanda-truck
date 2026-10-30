@@ -502,6 +502,29 @@ export class Sound {
     this.noiseBurst(t0 + 0.11, 0.09, 600, 1.5, 0.3, 'bandpass');
   }
 
+  /** Warning alarm (speed camera fine): three urgent high-low "wee-woo"s. */
+  alarm(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    for (let i = 0; i < 6; i++) {
+      const t0 = ctx.currentTime + i * 0.2;
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.value = i % 2 ? 740 : 990;
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 2400;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(0.09, t0 + 0.015);
+      g.gain.setValueAtTime(0.09, t0 + 0.17);
+      g.gain.linearRampToValueAtTime(0, t0 + 0.19);
+      o.connect(f).connect(g).connect(this.master);
+      o.start(t0);
+      o.stop(t0 + 0.2);
+    }
+  }
+
   beep(): void {
     const ctx = this.ctx;
     if (!ctx) return;
