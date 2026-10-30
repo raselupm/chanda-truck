@@ -6,7 +6,11 @@ stopped by illegal extortion barriers (চাঁদা) along the way: pay up, o
 outrun the chasers. At the end, a trip report breaks down where every taka went.
 
 Built with Vite + TypeScript + Three.js. All models are procedural low-poly geometry, all sound is
-synthesised with the Web Audio API, and there are no external downloads at runtime.
+synthesised with the Web Audio API except the truck engine, which plays a recording
+(`public/sounds/truck-engine.m4a`, 24 s cut from the original, see `ENGINE_SOUND` in `tuning.ts`): engine start when a run begins,
+idle, a running loop whose pitch climbs through each gear, and a gear change at each shift speed. If
+the file is missing, the synthesised engine hum is used. Run-ending crashes (head-on, falling into the valley) play
+`public/sounds/final-crash.m4a`.
 
 > Satire of a system. All characters and organisations are fictional and generic. No real party
 > names, symbols, colours or people are used. Prices are placeholders.
@@ -195,7 +199,7 @@ src/
   vehicle/                Truck (model), TruckController (physics), CameraRig, Chasers
   ui/                     HUD, ChaseMeter, BuyPanel, ResultReport,
                           ShareImage, TouchControls, Menu, DebugOverlay
-  audio/Sound.ts          synthesised sound effects
+  audio/Sound.ts          engine recording + synthesised sound effects
   utils/                  Bengali numbers (bnNumber.ts), geometry/texture helpers, rng, math
 ```
 

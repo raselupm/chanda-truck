@@ -1,6 +1,18 @@
-// Synthesised audio with the Web Audio API: engine hum, horn, crash, whistle, crowd, coins, beeps, wind.
+// Audio with the Web Audio API. The engine plays a recording (ENGINE_SOUND: start, idle, running, gear
+// change) when it has loaded, a synthesised hum until then; the run-ending crash is a recording too
+// (FINAL_CRASH_SOUND). Horn, small crashes, whistle, crowd, coins, beeps and wind are synthesised.
+
+import { ENGINE_SOUND, FINAL_CRASH_SOUND } from '../config/tuning';
 
 const MUTE_KEY = 'sobjir-truck-muted';
+
+/** The recorded engine: idle and running loops (crossfaded by speed) and one-shot parts. */
+interface SampleEngine {
+  buffer: AudioBuffer;
+  bus: GainNode;
+  idle: { src: AudioBufferSourceNode; gain: GainNode };
+  run: { src: AudioBufferSourceNode; gain: GainNode };
+}
 
 export class Sound {
   private ctx: AudioContext | null = null;
@@ -14,6 +26,13 @@ export class Sound {
   private rainGain!: GainNode;
   private windFilter!: BiquadFilterNode;
   private muteListeners: ((m: boolean) => void)[] = [];
+  private sample: SampleEngine | null = null;
+  private finalCrashBuf: AudioBuffer | null = null;
+  /** the engine-start part is playing until this time (idle waits for it) */
+  private startingUntil = 0;
+  /** an engine start was asked for before the recording had loaded */
+  private startPending = false;
+  private gear = 0;
   muted = false;
 
   constructor() {
@@ -66,6 +85,9 @@ export class Sound {
       o.start();
       this.engineOsc.push(o);
     });
+
+    void this.loadEngine(ctx);
+    void this.load(ctx, FINAL_CRASH_SOUND.url).then((b) => (this.finalCrashBuf = b));
 
     // Wind/water ambience
     const wind = ctx.createBufferSource();
@@ -123,11 +145,83 @@ export class Sound {
     for (const fn of this.muteListeners) fn(this.muted);
   }
 
-  /** speedRatio 0..1, throttle 0..1; running=false silences the engine. */
-  setEngine(speedRatio: number, throttle: number, running: boolean): void {
+  /** Fetch and decode a recording; null if it is missing or can't be decoded. */
+  private async load(ctx: AudioContext, url: string): Promise<AudioBuffer | null> {
+    try {
+      const res = await fetch(url);
+      return res.ok ? await ctx.decodeAudioData(await res.arrayBuffer()) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async loadEngine(ctx: AudioContext): Promise<void> {
+    try {
+      const buffer = await this.load(ctx, ENGINE_SOUND.url);
+      if (!buffer) return;
+      const bus = ctx.createGain();
+      bus.gain.value = ENGINE_SOUND.volume;
+      bus.connect(this.master);
+      const loop = ([from, to]: readonly [number, number]) => {
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.loop = true;
+        src.loopStart = from;
+        src.loopEnd = to;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        src.connect(gain).connect(bus);
+        src.start(0, from);
+        return { src, gain };
+      };
+      this.sample = { buffer, bus, idle: loop(ENGINE_SOUND.idle), run: loop(ENGINE_SOUND.running) };
+      this.engineGain.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+      if (this.startPending) this.engineStart();
+    } catch {
+      /* no recording: keep the synthesised engine */
+    }
+  }
+
+  /** Play one part of the engine recording once (with a short fade at both ends). */
+  private playPart([from, to]: readonly [number, number], volume: number): void {
+    const ctx = this.ctx;
+    const s = this.sample;
+    if (!ctx || !s) return;
+    const src = ctx.createBufferSource();
+    src.buffer = s.buffer;
+    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+    const len = to - from;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(volume, now + 0.05);
+    gain.gain.setValueAtTime(volume, now + len - 0.4);
+    gain.gain.linearRampToValueAtTime(0, now + len);
+    src.connect(gain).connect(s.bus);
+    src.start(now, from, len);
+  }
+
+  /** The driver turns the key: the engine-start part, then the idle takes over. */
+  engineStart(): void {
+    const ctx = this.ctx;
+    this.gear = 0;
+    if (!ctx || !this.sample) {
+      this.startPending = true;
+      return;
+    }
+    this.startPending = false;
+    this.playPart(ENGINE_SOUND.start, 1);
+    this.startingUntil = ctx.currentTime + (ENGINE_SOUND.start[1] - ENGINE_SOUND.start[0]) - 0.5;
+  }
+
+  /** speedRatio 0..1, throttle 0..1; running=false silences the engine. kmh picks the gear. */
+  setEngine(speedRatio: number, throttle: number, running: boolean, kmh = speedRatio * 115): void {
     const ctx = this.ctx;
     if (!ctx) return;
     const now = ctx.currentTime;
+    if (this.sample) {
+      this.setSampleEngine(Math.abs(kmh), throttle, running, now);
+      return;
+    }
     const base = 42 + speedRatio * 85 + throttle * 12;
     // fake gear shifts so the pitch doesn't rise forever
     const gearFrac = (speedRatio * 4) % 1;
@@ -135,6 +229,26 @@ export class Sound {
     this.engineOsc.forEach((o, i) => o.frequency.setTargetAtTime(f * [1, 0.5, 1.01][i], now, 0.08));
     this.engineFilter.frequency.setTargetAtTime(350 + throttle * 700 + speedRatio * 600, now, 0.1);
     this.engineGain.gain.setTargetAtTime(running ? 0.06 + throttle * 0.05 + speedRatio * 0.04 : 0, now, 0.15);
+  }
+
+  private setSampleEngine(kmh: number, throttle: number, running: boolean, now: number): void {
+    const s = this.sample!;
+    const E = ENGINE_SOUND;
+    const [a, b] = E.idleToRunKmh;
+    const k = Math.min(1, Math.max(0, (kmh - a) / (b - a)));
+    // gear: the running sound's pitch climbs through each gear and drops back at the shift
+    let g = 0;
+    while (g < E.gearKmh.length && kmh >= E.gearKmh[g]) g++;
+    const lo = g > 0 ? E.gearKmh[g - 1] : 0;
+    const hi = g < E.gearKmh.length ? E.gearKmh[g] : 125;
+    const frac = Math.min(1, (kmh - lo) / (hi - lo));
+    if (running && g > this.gear) this.playPart(E.gearUp, 0.9);
+    this.gear = g;
+    const starting = now < this.startingUntil;
+    s.idle.gain.gain.setTargetAtTime(running && !starting ? (1 - k) * (0.8 + throttle * 0.2) : 0, now, starting ? 0.05 : 0.2);
+    s.run.gain.gain.setTargetAtTime(running ? k * (0.65 + throttle * 0.35) : 0, now, 0.2);
+    s.idle.src.playbackRate.setTargetAtTime(1 + throttle * 0.1, now, 0.2);
+    s.run.src.playbackRate.setTargetAtTime(0.8 + frac * 0.4 + throttle * 0.05, now, 0.15);
   }
 
   setWind(level: number): void {
@@ -227,6 +341,23 @@ export class Sound {
     o.connect(g).connect(this.master);
     o.start(t0);
     o.stop(t0 + 0.55);
+  }
+
+  /** The crash that ends the run (the recording, or a big synthesised crash without it). */
+  finalCrash(delay = 0): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (!this.finalCrashBuf) {
+      if (delay > 0) setTimeout(() => this.crash(1.2), delay * 1000);
+      else this.crash(1.2);
+      return;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = this.finalCrashBuf;
+    const gain = ctx.createGain();
+    gain.gain.value = FINAL_CRASH_SOUND.volume;
+    src.connect(gain).connect(this.master);
+    src.start(ctx.currentTime + delay);
   }
 
   whistle(): void {

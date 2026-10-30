@@ -267,6 +267,7 @@ export class Game {
     this.cam.snap(this.truck);
 
     this.state.force('FARM');
+    this.sound.engineStart();
     this.hud.setRoute(this.route);
     this.hud.show(true);
     this.touch.show(true);
@@ -572,6 +573,8 @@ export class Game {
           this.fallSide = off;
           this.fallT = 0;
           this.gameOver('fall');
+          // when it hits the slope
+          this.sound.finalCrash(0.6);
         }
         const honking = this.input.horn && !this.modal && phase !== 'ARRIVAL';
         this.sound.horn(honking);
@@ -634,7 +637,7 @@ export class Game {
     this.hud.update(dt);
 
     const running = !this.state.paused && (phase === 'FARM' || phase === 'HIGHWAY' || phase === 'ARRIVAL');
-    this.sound.setEngine(Math.min(1, Math.abs(t.speed) / 32), running ? this.input.throttle : 0, running);
+    this.sound.setEngine(Math.min(1, Math.abs(t.speed) / 32), running ? this.input.throttle : 0, running, t.kmh);
     this.sound.setWind(this.state.paused ? 0 : this.wind);
 
     this.debug.set('phase', phase + (this.state.paused ? ' (paused)' : '') + (this.modal ? ' [modal]' : ''));

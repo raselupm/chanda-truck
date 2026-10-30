@@ -211,6 +211,27 @@ export const TRAFFIC = {
   longHornSeconds: 1.2,
 } as const;
 
+/**
+ * Engine sound from a recording (public/sounds): one file, played in parts (seconds into the file).
+ * The file is cut down to just these parts: 0–20 s of the original, then its gear change (33–37 s).
+ * Without the file the synthesised engine hum is used.
+ */
+export const ENGINE_SOUND = {
+  url: '/sounds/truck-engine.m4a',
+  start: [0, 4] as [number, number],
+  idle: [4, 11] as [number, number],
+  running: [13, 20] as [number, number],
+  gearUp: [20, 24] as [number, number],
+  /** shifting up past these speeds plays the gear change */
+  gearKmh: [22, 42, 62, 82, 102],
+  /** idle fades into the running sound between these speeds */
+  idleToRunKmh: [3, 18] as [number, number],
+  volume: 0.55,
+} as const;
+
+/** Recorded crash for the run-ending crashes (head-on, falling into the valley); others are synthesised. */
+export const FINAL_CRASH_SOUND = { url: '/sounds/final-crash.m4a', volume: 0.9 } as const;
+
 export const CAMERA = {
   distance: 13,
   height: 5.6,

@@ -674,7 +674,7 @@ export class Traffic {
       const closing = v.dir === -1 ? Math.max(0, truckKmh) + v.speed * 3.6 : truckKmh - vehKmh;
       if (!village && v.dir === -1 && v.heavy && closing >= TRAFFIC.headOnGameOverKmh) {
         g.cam.shake(2.5);
-        g.sound.crash(1.2);
+        g.sound.finalCrash();
         g.gameOver('crash');
         return;
       }
