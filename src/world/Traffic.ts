@@ -625,16 +625,16 @@ export class Traffic {
   private collide(v: Vehicle): void {
     const g = this.game;
     const t = g.truck;
-    if (!this.meetsTruck(v)) return;
+    if (!this.meetsTruck(v) || !this.touching(v)) return;
+    // how deep the overlap is along / across the road (tells a rear-end from a side swipe)
     const rel = t.heading - t.roadHeading(t.s);
     const thl = TRUCK.length / 2;
-    const thw = TRUCK.width / 2 + Math.abs(Math.sin(rel)) * thl * 0.8;
+    const thw = TRUCK.width / 2;
     const ds = v.s - t.s;
     const vd = this.worldD(v);
     const dd = vd - t.d;
-    const ovS = thl + v.len / 2 - Math.abs(ds);
-    const ovD = thw + v.wid / 2 - Math.abs(dd);
-    if (ovS <= 0 || ovD <= 0) return;
+    const ovS = Math.max(0.01, thl * Math.abs(Math.cos(rel)) + thw * Math.abs(Math.sin(rel)) + v.len / 2 - Math.abs(ds));
+    const ovD = Math.max(0.01, thl * Math.abs(Math.sin(rel)) + thw * Math.abs(Math.cos(rel)) + v.wid / 2 - Math.abs(dd));
     // creeping up to a queued / slower vehicle: just stop behind it
     if (v.dir === 1 && ds > 0 && ovS < ovD && t.kmh - v.speed * 3.6 < 12) {
       t.clampFront(v.s - v.len / 2 - 0.2);
@@ -699,6 +699,27 @@ export class Traffic {
       if (!v.heavy) this.knockAside(v, t.d);
       else v.targetD = v.d - push * 0.8;
     }
+  }
+
+  /**
+   * Do the truck and v actually overlap? Both as rectangles on the ground (their real length and width),
+   * each turned the way it points: the separating-axis test.
+   */
+  private touching(v: Vehicle): boolean {
+    const t = this.game.truck;
+    const r = v.mesh.rotation.y;
+    // forward (x, z) of each: the truck from its heading, the vehicle from its model's turn
+    const a = { x: t.x, z: t.z, fx: Math.sin(t.heading), fz: -Math.cos(t.heading), hl: TRUCK.length / 2, hw: TRUCK.width / 2 };
+    const b = { x: v.mesh.position.x, z: v.mesh.position.z, fx: -Math.sin(r), fz: -Math.cos(r), hl: v.len / 2, hw: v.wid / 2 };
+    const cx = b.x - a.x;
+    const cz = b.z - a.z;
+    const reach = (o: typeof a, ax: number, az: number) => o.hl * Math.abs(o.fx * ax + o.fz * az) + o.hw * Math.abs(-o.fz * ax + o.fx * az);
+    for (const o of [a, b]) {
+      for (const [ax, az] of [[o.fx, o.fz], [-o.fz, o.fx]]) {
+        if (Math.abs(cx * ax + cz * az) > reach(a, ax, az) + reach(b, ax, az)) return false;
+      }
+    }
+    return true;
   }
 
   /** Light vehicles comically hop to the roadside and stall — nobody gets hurt. */
