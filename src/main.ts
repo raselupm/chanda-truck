@@ -7,6 +7,7 @@ import './styles/ui.css';
 import * as THREE from 'three';
 import { LOOP, RENDER } from './config/tuning';
 import { Game } from './game/Game';
+import { initAnalytics } from './net/analytics';
 import { DebugOverlay } from './ui/DebugOverlay';
 import { preloadIconImages } from './ui/icons';
 import { isMobile } from './utils/device';
@@ -52,6 +53,7 @@ async function boot(): Promise<void> {
   await preloadIconImages();
   document.getElementById('boot')?.remove();
 
+  initAnalytics();
   const debug = new DebugOverlay(uiRoot, renderer);
   const game = new Game(scene, camera, uiRoot, debug);
   // Handy for tuning from the browser console during development

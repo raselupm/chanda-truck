@@ -3,6 +3,7 @@
 import { ECONOMY } from '../config/economy';
 import { DEFAULT_START_ID, START_POINTS } from '../config/route';
 import type { Sound } from '../audio/Sound';
+import { track } from '../net/analytics';
 import { player } from '../net/leaderboard';
 import { formatBn, formatKg, formatTaka } from '../utils/bnNumber';
 import { isTouchDevice } from '../utils/device';
@@ -45,6 +46,7 @@ export class Menu {
         'route-chip',
         () => {
           this.startId = p.id;
+          track('route_select', { route: p.id });
           chips.forEach((c) => c.classList.toggle('on', c === chip));
         },
         routes,

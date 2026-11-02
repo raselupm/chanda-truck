@@ -6,6 +6,7 @@ import { ECONOMY } from '../config/economy';
 import { EXHAUST, TRAFFIC } from '../config/tuning';
 import { DEFAULT_START_ID, generateRoute, START_POINTS, type FarmEvent, type RouteDef } from '../config/route';
 import { VEGETABLES, type VegId } from '../config/vegetables';
+import { track } from '../net/analytics';
 import { player, submitRun } from '../net/leaderboard';
 import { BuyPanel } from '../ui/BuyPanel';
 import type { DebugOverlay } from '../ui/DebugOverlay';
@@ -111,6 +112,8 @@ export class Game {
   /** bridge ambience level, rebuilt every frame */
   wind = 0;
   private startId = DEFAULT_START_ID;
+  /** runs started since the page loaded (analytics) */
+  private runCount = 0;
   route: RouteDef = generateRoute(DEFAULT_START_ID);
   private runTime = 0;
   private endTimer = -1;
@@ -157,6 +160,9 @@ export class Game {
 
     this.input.on('camera', () => this.toggleCamera());
     this.input.on('mute', () => this.sound.toggleMute());
+    this.sound.onMuteChange((muted) => track('sound_toggle', { muted }));
+    // closing the tab mid-run
+    window.addEventListener('pagehide', () => this.trackQuit('close'));
     this.input.on('pause', () => this.togglePause());
     this.weather.onThunder((delay) => this.sound.thunder(delay));
     document.addEventListener('visibilitychange', () => {
@@ -240,6 +246,7 @@ export class Game {
 
   /** Start a run from a district; barrier positions are re-rolled every run. */
   start(startId: string): void {
+    this.trackQuit('restart');
     this.startId = START_POINTS.some((p) => p.id === startId) ? startId : DEFAULT_START_ID;
     this.route = generateRoute(this.startId);
     this.closeOverlays();
@@ -278,18 +285,40 @@ export class Game {
     this.hud.show(true);
     this.touch.show(true);
     this.hud.warn('{farm} ক্ষেতের পাশের সবুজ জায়গায় থেমে সবজি কিনুন', 'info', 4);
+    track('level_start', { level_name: this.startId, route: this.startId, run_number: ++this.runCount });
+  }
+
+  /** the start point of the current run */
+  get startPointId(): string {
+    return this.startId;
+  }
+
+  /** How far the run got (for analytics): seconds played and % of the way to the market. */
+  private runProgress(): { route: string; play_time_sec: number; progress_pct: number } {
+    const market = this.route.events.find((e) => e.type === 'market');
+    const pct = (100 * this.truck.s) / (market?.s ?? this.track.length);
+    return { route: this.startId, play_time_sec: Math.round(this.runTime), progress_pct: Math.round(Math.min(100, Math.max(0, pct))) };
+  }
+
+  /** A run left before it ended: restarted, back to the menu or the tab closed. */
+  private trackQuit(via: 'restart' | 'home' | 'close'): void {
+    const phase = this.state.phase;
+    if (phase !== 'FARM' && phase !== 'HIGHWAY') return;
+    track('run_quit', { ...this.runProgress(), phase: phase.toLowerCase(), via });
   }
 
   depart(): void {
     if (this.state.phase !== 'FARM' || this.cargo.totalKg <= 0) return;
     if (this.buyPanel.isOpen) this.buyPanel.close();
     this.state.set('HIGHWAY');
+    track('run_depart', { route: this.startId, cargo_kg: Math.round(this.cargo.totalKg), farm_time_sec: Math.round(this.runTime) });
     const market = this.route.events.find((e) => e.type === 'market');
     this.truck.maxFrontS = (market?.s ?? this.track.length) + 30;
     this.hud.warn('{truck} ঢাকার পথে রওনা! সাবধানে চালান', 'good', 3);
   }
 
   goHome(): void {
+    this.trackQuit('home');
     this.state.paused = false;
     this.modal = false;
     this.closeOverlays();
@@ -318,6 +347,7 @@ export class Game {
   toggleCamera(): void {
     this.cam.toggle();
     const inside = this.cam.mode === 'cockpit';
+    track('camera_change', { mode: this.cam.mode });
     // built the first time someone climbs in
     if (inside) this.cockpit ??= new Cockpit();
     this.truckModel.setCockpit(inside);
@@ -339,6 +369,7 @@ export class Game {
     const cost = kg * v.farmPricePerKg;
     this.cash -= cost;
     this.cargo.add(veg, kg, v.farmPricePerKg);
+    track('farm_purchase', { route: this.startId, veg, kg, cost });
     this.ledger.add({ category: 'PURCHASE', amount: cost, cash: true, kg, labelBn: `${v.nameBn} ${formatKg(kg)}`, locationBn, t: this.runTime });
     this.sound.coin();
     this.hud.floatText(`${v.icon} +${formatKg(kg)}`, 'good');
@@ -423,6 +454,7 @@ export class Game {
       locationBn,
     });
     this.sound.alarm();
+    track('speed_fine', { route: this.startId, amount, kmh_over: Math.round(kmh - limitKmh) });
     this.hud.warn(`{camera} স্পিড ক্যামেরা! ${toBnDigits(Math.round(kmh))} কিমি/ঘণ্টা — জরিমানা ${formatTaka(amount)}`, 'fine', 3.5);
   }
 
@@ -509,6 +541,21 @@ export class Game {
     const submitted = player.name
       ? submitRun({ startId: this.startId, outcome, profit: r.profit, driveTime: this.stats.highwayTime, distance })
       : null;
+    const st = this.stats;
+    track('level_end', {
+      ...this.runProgress(),
+      level_name: this.startId,
+      success: outcome === 'arrived',
+      outcome,
+      score: score.points,
+      profit: Math.round(r.profit),
+      drive_time_sec: Math.round(st.highwayTime),
+      barriers_paid: st.barriersPaid,
+      barriers_broken: st.barriersBroken,
+      chases_escaped: st.chasesEscaped,
+      chases_caught: st.chasesCaught,
+      collisions: st.collisions,
+    });
     this.result.show(r, score, submitted);
   }
 

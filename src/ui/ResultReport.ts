@@ -4,6 +4,7 @@
 import { VEGETABLES } from '../config/vegetables';
 import type { ResultData } from '../game/Results';
 import type { Score } from '../game/Score';
+import { track } from '../net/analytics';
 import { player, type submitRun } from '../net/leaderboard';
 import { formatBn, formatClock, formatKg, formatTaka } from '../utils/bnNumber';
 import { button, el, esc } from './dom';
@@ -175,6 +176,7 @@ export class ResultReport {
     try {
       if (nav.share && nav.canShare?.({ files: [file] })) {
         await nav.share({ files: [file], title: 'সবজির ট্রাক — যাত্রার হিসাব', text: outcomeLine(this.last).text });
+        track('share', { method: 'web_share', content_type: 'result_image' });
         return;
       }
     } catch (e) {
@@ -189,5 +191,6 @@ export class ResultReport {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+    track('share', { method: 'download', content_type: 'result_image' });
   }
 }

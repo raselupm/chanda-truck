@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
 import { CHASE, EVENTS, EXHAUST, TRUCK, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
+import { track } from '../net/analytics';
 import { toBnDigits } from '../utils/bnNumber';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
 import { damp } from '../utils/math';
@@ -179,6 +180,7 @@ export class Chasers {
     const g = this.game;
     this.state = 'leaving';
     g.stats.chasesEscaped++;
+    track('chase_end', { route: g.startPointId, result: 'escaped' });
     g.sound.crowd(2);
     g.hud.warn('{party} পালিয়ে গেলেন!', 'good', 3.5);
     g.hud.toast('ওরা হাল ছেড়ে দিল… পরের মোড়ে আবার দেখা হবে।');
@@ -189,6 +191,7 @@ export class Chasers {
     const t = g.truck;
     this.state = 'caught';
     g.stats.chasesCaught++;
+    track('chase_end', { route: g.startPointId, result: 'caught', reason });
     t.stop();
     g.cam.shake(0.6);
     g.sound.crowd(2.2);
