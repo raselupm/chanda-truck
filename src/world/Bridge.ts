@@ -1,9 +1,10 @@
 // Long multi-span river bridge with piers, railings, lamps, water, sandbars and country boats.
 // Railways: Jamuna carries one along its left edge, Padma inside its truss under the road (its rail viaducts
-// come in from the left), and the old Hardinge railway bridge stands to the left of Lalon Shah.
+// come in from the left), and the old Hardinge railway bridge stands to the left of Lalon Shah. Bhairab has
+// two railway bridges to its left: the 2017 one (trains) and the old 1937 truss.
 
 import * as THREE from 'three';
-import { HARDINGE, ROAD, TRAINS } from '../config/tuning';
+import { BHAIRAB_RAIL, HARDINGE, ROAD, TRAINS } from '../config/tuning';
 import type { TollEvent } from '../config/route';
 import type { Game } from '../game/Game';
 import { box, buildColored, cyl, vertexColorMaterial, type Part } from '../utils/geometry';
@@ -71,7 +72,7 @@ export class Bridge extends SetPiece<TollEvent> {
     const waterLen = len + 260;
     this.water = this.own(new THREE.Mesh(
       new THREE.PlaneGeometry(1800, waterLen).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466, shahAmanat: 0x6a7f7a, meghnaGumti: 0x7a8466 }[style], map: this.waterTex }),
+      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466, shahAmanat: 0x6a7f7a, meghnaGumti: 0x7a8466, girder: 0x6f8476, bhairab: 0x768a80, payra: 0x6e8478, meghna: 0x74867c }[style], map: this.waterTex }),
     ));
     this.water.position.set(0, 0.35, -(start + len / 2));
     this.group.add(this.water);
@@ -88,8 +89,10 @@ export class Bridge extends SetPiece<TollEvent> {
     // Piers + railings + lamps (merged: the bridge is straight at x = 0)
     const parts: Part[] = [];
     const slab = deckY - 1.9; // underside of the road slab
-    if (style === 'shahAmanat') this.shahAmanat(parts, start, len, deckY, slab, edge);
-    else if (style === 'meghnaGumti') this.meghnaGumti(parts, start, len, slab, edge);
+    if (style === 'shahAmanat') this.extradosed(parts, start, len, deckY, slab, edge, 950, [0, 115, 315, 515, 715, 830]);
+    else if (style === 'payra') this.extradosed(parts, start, len, deckY, slab, edge, 1470, [520, 635, 835, 950]);
+    else if (style === 'meghnaGumti' || style === 'meghna') this.meghnaGumti(parts, start, len, slab, edge);
+    else if (style === 'bhairab') this.bhairab(parts, start, len, slab, edge);
     else if (!padma) {
       // Concrete box-girder bridge on twin round piers every 50 m
       for (let s = start + 25; s < end - 10; s += 50) {
@@ -163,8 +166,8 @@ export class Bridge extends SetPiece<TollEvent> {
         track.propBlocks.push({ from: s, to: s + 40, dMin: Math.min(a, b) - 8, dMax: Math.max(a, b) + 8 });
       }
     }
-    // Jamuna and Padma: passenger trains (Hardinge stays a view)
-    if (style === 'jamuna' || style === 'padma') {
+    // Jamuna, Padma and Bhairab: passenger trains (Hardinge and the old Bhairab truss stay a view)
+    if (style === 'jamuna' || style === 'padma' || style === 'bhairab') {
       for (let i = 0; i < 2; i++) {
         const tr = new Train(this.lines[0], TRAINS.coaches);
         this.trains.push(tr);
@@ -221,24 +224,29 @@ export class Bridge extends SetPiece<TollEvent> {
   }
 
   /**
-   * Shah Amanat Bridge (Karnaphuli): an extradosed prestressed concrete box girder. Three long main spans
-   * between two side spans (115 + 3 × 200 + 115 m, scaled), then a short approach viaduct. Four short pylons
-   * stand in the median, each with a single plane of stay cables fanning down to the middle of the deck.
+   * Extradosed prestressed concrete box girder (Shah Amanat, Payra): long main spans between short pylons
+   * that stand in the median, each with a single plane of stay cables fanning down to the middle of the deck,
+   * and a plain approach viaduct on round piers. `realLen` and the pier stations `main` (first and last end
+   * the main bridge, the ones between carry pylons) are in real metres and scaled to the game bridge.
+   * Shah Amanat (Karnaphuli): 115 + 3 × 200 + 115 m, then the viaduct. Payra (Lebukhali): one 200 m main
+   * span between 115 m side spans, mid-river, with viaducts at both ends.
    */
-  private shahAmanat(parts: Part[], start: number, len: number, deckY: number, slab: number, edge: number): void {
-    const k = len / 950;
-    const main = [0, 115, 315, 515, 715, 830].map((u) => start + u * k);
-    const pylons = main.slice(1, 5);
+  private extradosed(parts: Part[], start: number, len: number, deckY: number, slab: number, edge: number, realLen: number, main: number[]): void {
+    const k = len / realLen;
+    const piers = main.map((u) => start + u * k);
+    const [first, last] = [piers[0], piers[piers.length - 1]];
+    const pylons = piers.slice(1, -1);
     const concrete = 0xc8c2b4;
     // box girder: deeper at the pylons, shallower mid-span
-    for (let s = start; s < main[5]; s += 6) {
-      const near = Math.min(...main.map((p) => Math.abs(s + 3 - p)));
+    for (let s = first; s < last; s += 6) {
+      const near = Math.min(...piers.map((p) => Math.abs(s + 3 - p)));
       const depth = 2.2 + 2.6 * Math.max(0, 1 - near / (60 * k + 20));
       parts.push({ geo: box(edge * 1.5, depth, 6.05), color: 0xb5ae9f, p: [0, slab - depth / 2, -(s + 3)] });
     }
     // wall piers under the pylons and the ends of the main bridge, round piers under the viaduct
-    for (const s of main) parts.push({ geo: box(edge * 1.2, slab, 4.5), color: concrete, p: [0, slab / 2 - 4.6, -s] });
-    for (let s = main[5] + 25; s < start + len - 5; s += 25) {
+    for (const s of piers) parts.push({ geo: box(edge * 1.2, slab, 4.5), color: concrete, p: [0, slab / 2 - 4.6, -s] });
+    for (let s = start + 25; s < start + len - 5; s += 25) {
+      if (s > first - 10 && s < last + 10) continue;
       for (const d of [-edge * 0.4, edge * 0.4]) parts.push({ geo: cyl(0.9, 1.0, slab + 2, 10), color: 0xb9b3a6, p: [d, (slab - 2) / 2, -s] });
     }
     // the median the pylons stand in
@@ -264,8 +272,8 @@ export class Bridge extends SetPiece<TollEvent> {
   }
 
   /**
-   * Meghna-Gumti Bridge: a long prestressed concrete box girder built by balanced cantilever (deep haunches
-   * over every wall pier, ~87 m spans), with its newer twin bridge running alongside.
+   * Meghna-Gumti and Meghna bridges: long prestressed concrete box girders built by balanced cantilever (deep
+   * haunches over every wall pier, ~87 m spans), each with its newer twin bridge running alongside.
    */
   private meghnaGumti(parts: Part[], start: number, len: number, slab: number, edge: number): void {
     const span = 70;
@@ -300,6 +308,78 @@ export class Bridge extends SetPiece<TollEvent> {
     for (let s = start; s < start + len; s += 5) parts.push({ geo: box(edge * 1.1, 2.2, 5.05), color: 0x6f7e8c, p: [tx, slab - 1.1, -(s + 2.5)] });
     for (const s of piers) parts.push({ geo: box(edge * 1.1, slab - 2, 2.4), color: 0xc2bcae, p: [tx, (slab - 2) / 2 - 1, -s] });
     track.propBlocks.push({ from: start - ramp, to: start + len + ramp, dMin: edge + 1, dMax: tx + edge + 6 });
+  }
+
+  /**
+   * Syed Nazrul Islam Bridge (Bhairab–Ashuganj, 2002): a prestressed concrete box girder over the Meghna on
+   * wall piers (~110 m spans, scaled). Left of it stand the 2017 railway bridge (concrete girders, the one
+   * trains use here) and the old 1937 railway bridge: steel through trusses with parallel chords.
+   */
+  private bhairab(parts: Part[], start: number, len: number, slab: number, edge: number): void {
+    const span = len / Math.max(4, Math.round(len / 60));
+    const concrete = 0xc2bcae;
+    for (let s = start; s < start + len; s += 5) parts.push({ geo: box(edge * 1.4, 3, 5.05), color: 0xb8b1a3, p: [0, slab - 1.5, -(s + 2.5)] });
+    for (let s = start + span; s < start + len - 1; s += span) {
+      parts.push({ geo: box(edge * 1.5, 1.2, 4), color: 0xaaa497, p: [0, slab - 3.6, -s] });
+      parts.push({ geo: box(edge * 1.1, slab - 3, 3), color: concrete, p: [0, (slab - 3) / 2 - 1.2, -s] });
+    }
+    const { newX, oldX, railY } = BHAIRAB_RAIL;
+    const bot = railY - 0.5;
+    // 2017 railway bridge: single track on a concrete girder, round piers
+    for (let s = start; s < start + len; s += 5) parts.push({ geo: box(6, 2.2, 5.05), color: 0xbab3a5, p: [newX, bot - 1.1, -(s + 2.5)] });
+    for (const side of [-1, 1]) parts.push({ geo: box(0.3, 1.0, len), color: 0xd8d2c4, p: [newX + side * 2.9, railY + 0.3, -(start + len / 2)] });
+    for (let s = start + span / 2; s < start + len - 5; s += span / 2) {
+      parts.push({ geo: cyl(1.4, 1.6, bot, 12), color: concrete, p: [newX, bot / 2 - 1.5, -s] });
+    }
+    // 1937 railway bridge: parallel-chord Warren through trusses on stone piers
+    const n = Math.max(4, Math.round(len / 80));
+    const L = len / n;
+    const panels = 8;
+    const P = L / panels;
+    const H = 9;
+    const half = 3.4;
+    const steel = 0x6f7a80;
+    const dark = 0x56606a;
+    const diag = Math.hypot(P, H);
+    const ang = Math.atan2(P, H);
+    for (let k = 0; k < n; k++) {
+      const s0 = start + k * L;
+      for (const side of [-1, 1]) {
+        const x = oldX + side * half;
+        parts.push({ geo: box(0.7, 1.0, L - 0.4), color: steel, p: [x, bot, -(s0 + L / 2)] });
+        parts.push({ geo: box(0.7, 0.8, L - 2 * P), color: steel, p: [x, bot + H, -(s0 + L / 2)] });
+        for (let i = 0; i < panels; i++) {
+          const up = i < panels / 2 ? 1 : -1;
+          parts.push({ geo: box(0.45, diag, 0.45), color: dark, p: [x, bot + H / 2, -(s0 + i * P + P / 2)], r: [up * (i % 2 ? ang : -ang), 0, 0] });
+          if (i > 0) parts.push({ geo: box(0.4, H, 0.4), color: dark, p: [x, bot + H / 2, -(s0 + i * P)] });
+        }
+      }
+      for (let i = 1; i < panels; i++) {
+        parts.push({ geo: box(half * 2, 0.35, 0.35), color: dark, p: [oldX, bot + H, -(s0 + i * P)] });
+        parts.push({ geo: box(half * 2, 0.6, 0.5), color: dark, p: [oldX, bot - 0.3, -(s0 + i * P)] });
+      }
+      parts.push({ geo: box(half * 2 + 0.4, 0.5, L), color: 0x6d6a64, p: [oldX, railY - 0.7, -(s0 + L / 2)] });
+    }
+    for (let j = 0; j <= n; j++) {
+      const s = start + j * L;
+      parts.push({ geo: box(half * 2 + 2, bot, 5), color: 0xb7a68a, p: [oldX, bot / 2 - 0.9, -s] });
+    }
+    // both lines run on to Bhairab Bazar station on their own banks
+    const R = this.event.bridge!.rail ?? 900;
+    const rail = (x: number, away: number) => this.railPath(
+      (u) => ease(u, [[150, x], [R - 350, x], [R, away]]),
+      (u) => ease(u, [[120, railY], [520, 0.8]]),
+      (u) => (u === 0 ? 'deck' : 'bank'),
+      R,
+    );
+    this.lines.push(new RailLine(rail(newX, -260)), new RailLine(rail(oldX, -300)));
+    const board = this.own(new THREE.Mesh(
+      new THREE.PlaneGeometry(22, 3.8),
+      new THREE.MeshLambertMaterial({ map: signTexture(['ভৈরব রেলসেতু (১৯৩৭)'], { bg: '#f2efe6', fg: '#1d1d1d', w: 1024, h: 176, sizes: [104] }) }),
+    ));
+    board.position.set(oldX + half + 0.3, bot + H + 3, -(start + L / 2));
+    board.rotation.y = Math.PI / 2;
+    this.group.add(board);
   }
 
   /** distance outside the bridge (0 on it) */

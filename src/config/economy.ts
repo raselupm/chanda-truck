@@ -26,6 +26,11 @@ export const ECONOMY = {
     expresswayToll: 900,
     shahAmanatToll: 250,
     meghnaGumtiToll: 650,
+    sherpurToll: 250,
+    bhairabToll: 500,
+    shambhuganjToll: 200,
+    payraToll: 400,
+    meghnaToll: 650,
   },
 
   /** % of current cargo kg lost in each situation */

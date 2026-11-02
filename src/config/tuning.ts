@@ -76,6 +76,13 @@ export const ROAD = {
     // Shah Amanat (Karnaphuli): extradosed, tall enough for river ships
     shahAmanat: { deck: 12, ramp: 260 },
     meghnaGumti: { deck: 9, ramp: 210 },
+    // plain concrete girder bridge over a smaller river (Sherpur, Shambhuganj)
+    girder: { deck: 7, ramp: 180 },
+    // Syed Nazrul Islam (Bhairab): box girder over the Meghna, two railway bridges beside it
+    bhairab: { deck: 10, ramp: 220 },
+    // Payra (Lebukhali): extradosed like Shah Amanat, high over the river
+    payra: { deck: 12, ramp: 260 },
+    meghna: { deck: 9, ramp: 210 },
   },
   /** straight road kept before / after every event (set pieces sit on x = 0) */
   straightBefore: 260,
@@ -312,6 +319,9 @@ export const TRAINS = {
 
 /** The old Hardinge railway bridge beside Lalon Shah Bridge: how far left, and its rail height. */
 export const HARDINGE = { offset: -160, railY: 9 } as const;
+
+/** Bhairab: the 2017 railway bridge and the old 1937 truss, left of the road bridge (x offsets, rail height) */
+export const BHAIRAB_RAIL = { newX: -30, oldX: -58, railY: 8.5 } as const;
 
 export const RAIL = {
   /** level crossings per route */

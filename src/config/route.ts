@@ -30,7 +30,7 @@ export interface BarrierEvent extends EventBase {
   workers: number;
 }
 
-export type BridgeStyle = 'jamuna' | 'padma' | 'lalon' | 'shahAmanat' | 'meghnaGumti';
+export type BridgeStyle = 'jamuna' | 'padma' | 'lalon' | 'shahAmanat' | 'meghnaGumti' | 'girder' | 'bhairab' | 'payra' | 'meghna';
 
 export interface TollEvent extends EventBase {
   /** roadTax = ROAD_TAX ledger category; roadToll / bridgeToll = TOLL */
@@ -150,13 +150,34 @@ const PADMA: LegalStop = {
   id: 'padma', type: 'bridgeToll', feeKey: 'padmaToll', nameBn: 'পদ্মা সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'পদ্মা সেতু', style: 'padma', offset: 520, length: 760, rail: 1_300 },
 };
-const SHAH_AMANAT: LegalStop = {
+/** On the Chattogram–Cox's Bazar road (not on any route yet; kept for a Cox's Bazar start). */
+export const SHAH_AMANAT: LegalStop = {
   id: 'shahAmanat', type: 'bridgeToll', feeKey: 'shahAmanatToll', nameBn: 'শাহ আমানত সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'শাহ আমানত সেতু', style: 'shahAmanat', offset: 300, length: 600 },
 };
 const MEGHNA_GUMTI: LegalStop = {
   id: 'meghnaGumti', type: 'bridgeToll', feeKey: 'meghnaGumtiToll', nameBn: 'মেঘনা-গোমতী সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'মেঘনা-গোমতী সেতু', style: 'meghnaGumti', offset: 300, length: 700 },
+};
+const SHERPUR: LegalStop = {
+  id: 'sherpur', type: 'bridgeToll', feeKey: 'sherpurToll', nameBn: 'শেরপুর সেতু টোল', icon: '{bridge}', small: true,
+  bridge: { nameBn: 'শেরপুর সেতু', style: 'girder', offset: 300, length: 340 },
+};
+const BHAIRAB: LegalStop = {
+  id: 'bhairab', type: 'bridgeToll', feeKey: 'bhairabToll', nameBn: 'সৈয়দ নজরুল ইসলাম সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'সৈয়দ নজরুল ইসলাম সেতু', style: 'bhairab', offset: 300, length: 650, rail: 900 },
+};
+const SHAMBHUGANJ: LegalStop = {
+  id: 'shambhuganj', type: 'bridgeToll', feeKey: 'shambhuganjToll', nameBn: 'শম্ভুগঞ্জ সেতু টোল', icon: '{bridge}', small: true,
+  bridge: { nameBn: 'শম্ভুগঞ্জ সেতু', style: 'girder', offset: 300, length: 380 },
+};
+const PAYRA: LegalStop = {
+  id: 'payra', type: 'bridgeToll', feeKey: 'payraToll', nameBn: 'পায়রা সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'পায়রা সেতু', style: 'payra', offset: 300, length: 700 },
+};
+const MEGHNA: LegalStop = {
+  id: 'meghna', type: 'bridgeToll', feeKey: 'meghnaToll', nameBn: 'মেঘনা সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'মেঘনা সেতু', style: 'meghna', offset: 300, length: 600 },
 };
 const EXPRESSWAY: LegalStop = {
   id: 'expressway', type: 'roadToll', feeKey: 'expresswayToll', nameBn: 'এক্সপ্রেসওয়ে টোল', icon: '{road}',
@@ -190,11 +211,57 @@ export const START_POINTS: StartPoint[] = [
   {
     id: 'rangamati',
     nameBn: 'রাঙামাটি',
-    pathBn: 'পাহাড়ি রাস্তা → চট্টগ্রাম → শাহ আমানত সেতু → মেঘনা-গোমতী সেতু',
-    legal: [SHAH_AMANAT, MEGHNA_GUMTI],
+    // N106 via Raozan and Hathazari, the Bayezid–Fouzdarhat link road onto N1 (no Karnaphuli crossing)
+    pathBn: 'পাহাড়ি রাস্তা → হাটহাজারী → মেঘনা-গোমতী সেতু → মেঘনা সেতু',
+    legal: [MEGHNA_GUMTI, MEGHNA],
     randomBarriers: 6,
     hill: 1_250,
     farmsBn: 'রাঙামাটির পাহাড়ি সবজি ক্ষেত',
+  },
+  {
+    // N5: Mahasthan Haat → Hatikumrul → Jamuna Bridge → Elenga → Tangail
+    id: 'bogura',
+    nameBn: 'বগুড়া',
+    pathBn: 'মহাস্থান হাট → হাটিকুমরুল → যমুনা সেতু → এলেঙ্গা',
+    legal: [JAMUNA],
+    randomBarriers: 8,
+    farmsBn: 'মহাস্থানের সবজি ক্ষেত',
+  },
+  {
+    // N2: Sylhet → Sherpur (Kushiyara) → Shaistaganj → Ashuganj → Bhairab (Meghna) → Narsingdi → Kanchpur
+    id: 'sylhet',
+    nameBn: 'সিলেট',
+    pathBn: 'শেরপুর সেতু → আশুগঞ্জ → ভৈরব সেতু → নরসিংদী',
+    legal: [SHERPUR, BHAIRAB],
+    randomBarriers: 6,
+    farmsBn: 'সিলেটের সবজি ক্ষেত',
+  },
+  {
+    // Netrokona → Shambhuganj Bridge (Old Brahmaputra) → Mymensingh → N3: Bhaluka → Gazipur → Tongi
+    id: 'netrokona',
+    nameBn: 'নেত্রকোনা',
+    pathBn: 'শম্ভুগঞ্জ সেতু → ময়মনসিংহ → ভালুকা → গাজীপুর',
+    legal: [SHAMBHUGANJ],
+    randomBarriers: 6,
+    farmsBn: 'নেত্রকোনার সবজি ক্ষেত',
+  },
+  {
+    // N8: Patuakhali → Lebukhali (Payra) → Barishal → Bhanga → Padma Bridge → Dhaka–Mawa Expressway
+    id: 'patuakhali',
+    nameBn: 'পটুয়াখালী',
+    pathBn: 'পায়রা সেতু → বরিশাল → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল',
+    legal: [PAYRA, PADMA, EXPRESSWAY],
+    randomBarriers: 6,
+    farmsBn: 'পটুয়াখালীর সবজি ক্ষেত',
+  },
+  {
+    // N1: Cumilla → Daudkandi (Meghna-Gumti) → Meghnaghat (Meghna) → Kanchpur
+    id: 'cumilla',
+    nameBn: 'কুমিল্লা',
+    pathBn: 'দাউদকান্দি → মেঘনা-গোমতী সেতু → মেঘনা সেতু → কাঁচপুর',
+    legal: [MEGHNA_GUMTI, MEGHNA],
+    randomBarriers: 6,
+    farmsBn: 'কুমিল্লার সবজি ক্ষেত',
   },
 ];
 

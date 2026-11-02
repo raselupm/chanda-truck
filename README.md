@@ -70,12 +70,19 @@ All numbers live in `src/config/`:
   - `speedFine` (base + per km/h over the limit, speed cameras in slow zones)
   - `cargoDamagePct.*`, `ramSpeedKmh` (90), `tollMaxSpeedKmh` (20), `chaseRequiredSeconds` (10)
   - `chaseMeterMode`: `'reset'` (default: dropping below 90 resets the meter) or `'pause'`
-- **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর, রাঙামাটি). Each has an ordered list of legal toll
-  stops and a number of random chanda barriers:
+- **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর, রাঙামাটি, বগুড়া, সিলেট, নেত্রকোনা, পটুয়াখালী,
+  কুমিল্লা). Each has an ordered list of legal toll stops on its real highway and a number of random
+  chanda barriers:
   - যশোর: লালন শাহ সেতু → নাটোর সড়ক টোল → যমুনা সেতু, 10 barriers
   - রাজশাহী: নাটোর সড়ক টোল → যমুনা সেতু, 6 barriers
   - ফরিদপুর: পদ্মা সেতু → এক্সপ্রেসওয়ে টোল, 6 barriers
-  - রাঙামাটি: 1.25 km hill road → শাহ আমানত সেতু → মেঘনা-গোমতী সেতু, 6 barriers
+  - রাঙামাটি: 1.25 km hill road → মেঘনা-গোমতী সেতু → মেঘনা সেতু, 6 barriers (N106 via Hathazari and the
+    Bayezid–Fouzdarhat link road, so no Karnaphuli crossing)
+  - বগুড়া: যমুনা সেতু (N5 via Hatikumrul and Elenga), 8 barriers
+  - সিলেট: শেরপুর সেতু (Kushiyara) → সৈয়দ নজরুল ইসলাম সেতু (Bhairab, Meghna), 6 barriers
+  - নেত্রকোনা: শম্ভুগঞ্জ সেতু (Old Brahmaputra) → N3 via Bhaluka and Gazipur, 6 barriers
+  - পটুয়াখালী: পায়রা সেতু (Lebukhali) → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল, 6 barriers
+  - কুমিল্লা: মেঘনা-গোমতী সেতু (Daudkandi) → মেঘনা সেতু (Meghnaghat), 6 barriers
 
   `generateRoute()` re-rolls the barrier positions, places and amounts every run
   (`ECONOMY.randomChanda`). The last barrier is always at the city entrance. Spacing rules are in
@@ -124,12 +131,19 @@ All numbers live in `src/config/`:
 The railway lines and trains are in `world/Railway.ts` (`TRAINS` and `HARDINGE` in `tuning.ts`). Route
 generation keeps the railway's stretch (`bridge.rail` in `route.ts`) clear of other events.
 
-- **Shah Amanat (Karnaphuli):** modelled on the real extradosed bridge. A prestressed concrete box
+- **Shah Amanat (Karnaphuli):** not on any route at the moment (kept for a Cox's Bazar start). Modelled on
+  the real extradosed bridge. A prestressed concrete box
   girder over 115 + 3 × 200 + 115 m spans (scaled), deeper at the four short pylons. The pylons stand in
   the median, each with a single plane of stay cables fanning down to the middle of the deck, and the
   median keeps your traffic in the left lanes. A short viaduct on round piers follows.
-- **Meghna-Gumti:** a long prestressed concrete box girder built by balanced cantilever, with deep
-  haunches over every wall pier, and its newer steel twin bridge running alongside.
+- **Payra (Lebukhali):** the same extradosed design: one 200 m main span between two median pylons,
+  mid-river, with approach viaducts on round piers at both ends.
+- **Meghna-Gumti and Meghna:** long prestressed concrete box girders built by balanced cantilever, with
+  deep haunches over every wall pier, each with its newer steel twin bridge running alongside.
+- **Syed Nazrul Islam (Bhairab):** a concrete box girder on wall piers. On its left are the 2017 railway
+  bridge (concrete girders, trains run on it) and the old 1937 railway bridge (steel parallel-chord
+  Warren through trusses on stone piers, `BHAIRAB_RAIL` in `tuning.ts`).
+- **Sherpur and Shambhuganj:** short plain concrete girder bridges on twin piers (`girder`).
 
 Deck heights and ramp lengths are in `ROAD.bridgeStyles`.
 
