@@ -124,6 +124,133 @@ export class Sound {
     rain.start(0, 0.7);
   }
 
+  /** A cow at the gorur hat: a low, gliding "hamba". vol 0..1 (from distance). */
+  moo(vol = 1): void {
+    const ctx = this.ctx;
+    if (!ctx || vol <= 0.01) return;
+    const t0 = ctx.currentTime;
+    const dur = 1.1 + Math.random() * 0.7;
+    const f0 = 95 + Math.random() * 40;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f0 * 0.9, t0);
+    o.frequency.linearRampToValueAtTime(f0 * 1.35, t0 + dur * 0.35);
+    o.frequency.linearRampToValueAtTime(f0 * 0.8, t0 + dur);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.Q.value = 5;
+    f.frequency.setValueAtTime(350, t0);
+    f.frequency.linearRampToValueAtTime(900, t0 + dur * 0.4);
+    f.frequency.linearRampToValueAtTime(300, t0 + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.14 * vol, t0 + 0.15);
+    g.gain.setValueAtTime(0.14 * vol, t0 + dur * 0.7);
+    g.gain.linearRampToValueAtTime(0, t0 + dur);
+    o.connect(f).connect(g).connect(this.master);
+    o.start(t0);
+    o.stop(t0 + dur + 0.05);
+  }
+
+  /** Bat on a tape-tennis ball. */
+  bat(vol = 1): void {
+    if (!this.ctx || vol <= 0.01) return;
+    const t0 = this.ctx.currentTime;
+    this.noiseBurst(t0, 0.07, 1900, 3, 0.3 * vol, 'bandpass');
+    this.noiseBurst(t0, 0.05, 700, 2, 0.15 * vol, 'bandpass');
+  }
+
+  /**
+   * A waz mahfil sermon over horn loudspeakers, heard from the road: a speech-like voice (pitch contour,
+   * syllables, shifting vowel formants, pauses between phrases), squeezed through a horn speaker and
+   * echoing off the other speakers down the road. set(level) follows distance; the pitch argument is unused.
+   */
+  mahfilVoice(): AircraftVoice | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    // horn speaker: band-limited and a little overdriven, then a long slap-back echo
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 380;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 3200;
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i / 255) * 2 - 1;
+      curve[i] = Math.tanh(x * 2.6);
+    }
+    shaper.curve = curve;
+    const delay = ctx.createDelay(1);
+    delay.delayTime.value = 0.34;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.38;
+    hp.connect(shaper).connect(lp).connect(out);
+    lp.connect(delay).connect(fb).connect(delay);
+    fb.connect(out);
+    out.connect(this.master);
+
+    const voice = ctx.createOscillator();
+    voice.type = 'sawtooth';
+    voice.frequency.value = 150;
+    const syl = ctx.createGain();
+    syl.gain.value = 0;
+    const f1 = ctx.createBiquadFilter();
+    f1.type = 'bandpass';
+    f1.Q.value = 7;
+    const f2 = ctx.createBiquadFilter();
+    f2.type = 'bandpass';
+    f2.Q.value = 9;
+    const f2g = ctx.createGain();
+    f2g.gain.value = 0.6;
+    voice.connect(syl);
+    syl.connect(f1).connect(hp);
+    syl.connect(f2).connect(f2g).connect(hp);
+    voice.start();
+    // vowels as (F1, F2) pairs
+    const VOWELS: [number, number][] = [[750, 1200], [550, 1800], [350, 2200], [450, 900], [650, 1500], [400, 1000]];
+    let next = ctx.currentTime;
+    let phraseLeft = 6 + Math.floor(Math.random() * 10);
+    let stopped = false;
+    const schedule = () => {
+      const now = ctx.currentTime;
+      while (next < now + 0.4) {
+        if (phraseLeft-- <= 0) {
+          // a breath between phrases, sometimes a long drawn-out ending
+          phraseLeft = 5 + Math.floor(Math.random() * 12);
+          next += 0.35 + Math.random() * 0.8;
+          continue;
+        }
+        const dur = 0.13 + Math.random() * 0.16;
+        const [a, b] = VOWELS[Math.floor(Math.random() * VOWELS.length)];
+        const pitch = 135 + Math.random() * 55 + (phraseLeft < 2 ? 25 : 0);
+        voice.frequency.setTargetAtTime(pitch, next, 0.04);
+        f1.frequency.setTargetAtTime(a, next, 0.03);
+        f2.frequency.setTargetAtTime(b, next, 0.03);
+        syl.gain.setTargetAtTime(0.5, next, 0.02);
+        syl.gain.setTargetAtTime(0.06, next + dur * 0.75, 0.03);
+        next += dur;
+      }
+    };
+    return {
+      set: (level) => {
+        if (stopped) return;
+        schedule();
+        out.gain.setTargetAtTime(Math.max(0, Math.min(1, level)) * 0.5, ctx.currentTime, 0.15);
+      },
+      stop: () => {
+        if (stopped) return;
+        stopped = true;
+        out.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
+        voice.stop(ctx.currentTime + 0.8);
+        setTimeout(() => out.disconnect(), 2500);
+      },
+    };
+  }
+
   /** A looping sound for one aircraft, or null before the first user gesture. */
   aircraftVoice(kind: AircraftSound): AircraftVoice | null {
     const ctx = this.ctx;

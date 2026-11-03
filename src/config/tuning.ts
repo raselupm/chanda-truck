@@ -311,6 +311,21 @@ export const SLOW_ZONES = {
   tolerance: 5,
 } as const;
 
+/**
+ * Village life beside the highway (world/VillageSights.ts): a gorur hat (cattle market), a waz mahfil, and
+ * football and cricket fields, placed in quiet rural stretches of every route. count = how many per route,
+ * length = metres along the road, depth = metres back from the road edge, gap = road left between the
+ * road edge and the site.
+ */
+export const VILLAGE = {
+  gorurHat: { count: 1, length: 120, depth: 58, gap: 5 },
+  wazMahfil: { count: 1, length: 96, depth: 52, gap: 6 },
+  football: { count: 2, length: 84, depth: 50, gap: 7 },
+  cricket: { count: 2, length: 90, depth: 62, gap: 7 },
+  /** within this many metres the sights play their sounds */
+  hearing: 260,
+} as const;
+
 /** Passenger trains on the railways beside Jamuna and Padma bridges (world/Railway.ts). */
 export const TRAINS = {
   /** m/s along the line (~72 km/h) */

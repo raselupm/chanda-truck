@@ -3,7 +3,7 @@
 // Distances (s, metres along the track) are compressed for gameplay.
 
 import { ECONOMY, type FeeKey } from './economy';
-import { BROKEN_ROAD, CITY, RAIL, ROADWORKS, SHORTCUT, SLOW_ZONES } from './tuning';
+import { BROKEN_ROAD, CITY, RAIL, ROADWORKS, SHORTCUT, SLOW_ZONES, VILLAGE } from './tuning';
 import type { VegId } from './vegetables';
 import { toBnDigits } from '../utils/bnNumber';
 import { mulberry32, range, type Rng } from '../utils/rng';
@@ -80,6 +80,17 @@ export interface SlowZone {
   side: -1 | 1;
 }
 
+export type SightKind = keyof Omit<typeof VILLAGE, 'hearing'>;
+
+/** Village life beside the road: a cattle market, a waz mahfil, a football or cricket field. */
+export interface Sight {
+  kind: SightKind;
+  /** middle of the site along the road */
+  s: number;
+  /** side of the road (-1 = left) */
+  side: -1 | 1;
+}
+
 /**
  * A village road round a chanda barrier: forks off to the left at `from` and rejoins from the left at `to`.
  * A right-side one passes under the highway (which goes over it on a flyover) at each of `crossings`:
@@ -113,6 +124,8 @@ export interface RouteDef {
   hills: { from: number; to: number; seed: number } | null;
   /** village shortcuts round some of the barriers */
   shortcuts: ShortcutDef[];
+  /** cattle market, waz mahfil, football and cricket fields beside the road */
+  sights: Sight[];
   events: RouteEvent[];
   /** total track length (a little beyond the market) */
   length: number;
@@ -552,6 +565,40 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     slowZones.push({ from, to, kind: 'school', limitKmh: SLOW_ZONES.schoolKmh, side: rng() < 0.5 ? -1 : 1 });
     busy.push([from - 300, to + 300]);
   }
+  // Village life beside the road. It only has to keep clear of what's actually built there (set pieces,
+  // bazaars, schools, shortcuts, the hill road), so it gets its own tighter list. One of each kind first,
+  // then the extra fields, the big sites first so they find room.
+  const taken: [number, number][] = [
+    [0, LAYOUT.highwayStart + 300], [cityStartS - 300, marketS + 400],
+    ...townZones.map(([a, b2]) => [a - 60, b2 + 60] as [number, number]),
+    ...shortcuts.map((sc) => [sc.from - 80, sc.to + 80] as [number, number]),
+    ...slowZones.filter((z) => z.kind === 'school').map((z) => [z.from - 60, z.to + 60] as [number, number]),
+    ...(hills ? [[hills.from - 100, hills.to + 100] as [number, number]] : []),
+  ];
+  for (const e of events) {
+    if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
+    const br = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.bridge : null;
+    const rail = br?.rail ?? 0;
+    taken.push([e.s - 160 - rail, br ? e.s + br.offset + br.length + rail + br.offset + 120 : e.s + 120]);
+  }
+  const sights: Sight[] = [];
+  const order: SightKind[] = ['gorurHat', 'wazMahfil', 'cricket', 'football'];
+  for (const round of [0, 1]) {
+    for (const kind of order) {
+      const { count, length } = VILLAGE[kind];
+      if (round >= count) continue;
+      for (let tries = 0; tries < 400; tries++) {
+        const at = LAYOUT.highwayStart + 400 + rng() * (cityStartS - LAYOUT.highwayStart - 800);
+        const from = at - length / 2 - 15;
+        const to = at + length / 2 + 15;
+        if (taken.some(([a, b2]) => to > a && from < b2)) continue;
+        sights.push({ kind, s: at, side: rng() < 0.5 ? -1 : 1 });
+        taken.push([from - 40, to + 40]);
+        break;
+      }
+    }
+  }
+  sights.sort((a, b2) => a.s - b2.s);
   slowZones.push({ from: marketS - 650, to: marketS + 20, kind: 'market', limitKmh: SLOW_ZONES.marketKmh, side: -1 });
   slowZones.sort((a, b2) => a.from - b2.from);
 
@@ -566,6 +613,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     broken,
     wide,
     shortcuts,
+    sights,
     hills,
     events,
     length: marketS + 300,

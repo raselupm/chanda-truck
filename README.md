@@ -131,6 +131,21 @@ All numbers live in `src/config/`:
   smoke from its tailpipe. Buses and trucks puff the most, and pedal rickshaws don't smoke at all. Your
   truck's smoke comes out of a stack behind the cab. It puffs a thick cloud when the engine starts and
   when you floor it from low speed. All the puffs share one pooled point cloud.
+- **Village life** (`world/VillageSights.ts`, `VILLAGE` in `tuning.ts`): every route has a গরুর হাট, a ওয়াজ মাহফিল,
+  two football fields and two cricket fields beside the road, in quiet rural stretches. Each run places them
+  somewhere new, on either side of the road.
+  - **গরুর হাট:** rows of deshi cattle tied to bamboo rails (some in Eid garlands), Black Bengal goats, tarp
+    shades, a bull under his own shade, straw piles, the হাসিল ঘর desk with a loudspeaker, and buyers walking
+    the rows. Cows are led along the road shoulder. You hear them moo as you pass.
+  - **ওয়াজ মাহফিল:** a patchwork shamiana with cloth walls on the far side, a stage with its banner and the
+    speakers, rows of listeners on mats, food stalls and a decorated gate. Horn loudspeakers on bamboo poles
+    line the road for 200 m each way, and a synthesised sermon carries over them with an echo. At night the
+    string lights come on.
+  - **Football:** bamboo goals on a worn field, with two teams of boys in Argentina sky-blue stripes and Brazil
+    yellow chasing the ball. Spectators sit along the road, and cows graze at the corner.
+  - **Cricket:** a pitch with stumps and creases. The bowler runs in, the batter plays a shot or misses to the
+    keeper, a fielder chases it down, and the batters run.
+  - The players go home after dark.
 - **Pedestrians:** they open umbrellas when it rains and carry flashlights after dark.
 - **Slow zones** (`SLOW_ZONES` in `tuning.ts`): every bazaar (40 km/h), 2–3 random schools (30 km/h) and
   the Karwan Bazar approach (30 km/h). Each has signs, and schools also get a school building, kids
