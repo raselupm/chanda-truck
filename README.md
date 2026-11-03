@@ -90,7 +90,7 @@ All numbers live in `src/config/`:
   - `cargoDamagePct.*`, `ramSpeedKmh` (90), `tollMaxSpeedKmh` (20), `chaseRequiredSeconds` (10)
   - `chaseMeterMode`: `'reset'` (default: dropping below 90 resets the meter) or `'pause'`
 - **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর, রাঙামাটি, বগুড়া, সিলেট, নেত্রকোনা, পটুয়াখালী,
-  কুমিল্লা). Each has an ordered list of legal toll stops on its real highway and a number of random
+  কুমিল্লা, রংপুর, পাবনা, খুলনা, নড়াইল, মুন্সীগঞ্জ, বান্দরবান). Each has an ordered list of legal toll stops on its real highway and a number of random
   chanda barriers:
   - যশোর: লালন শাহ সেতু → নাটোর সড়ক টোল → যমুনা সেতু, 10 barriers
   - রাজশাহী: নাটোর সড়ক টোল → যমুনা সেতু, 6 barriers
@@ -102,6 +102,15 @@ All numbers live in `src/config/`:
   - নেত্রকোনা: শম্ভুগঞ্জ সেতু (Old Brahmaputra) → N3 via Bhaluka and Gazipur, 6 barriers
   - পটুয়াখালী: পায়রা সেতু (Lebukhali) → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল, 6 barriers
   - কুমিল্লা: মেঘনা-গোমতী সেতু (Daudkandi) → মেঘনা সেতু (Meghnaghat), 6 barriers
+  - রংপুর: যমুনা সেতু (N5 via Palashbari, Gobindaganj, Bogura and Hatikumrul), 10 barriers
+  - পাবনা: যমুনা সেতু (via Kashinathpur, Baghabari and Hatikumrul), 7 barriers; onion farms
+  - খুলনা: মোল্লাহাট সেতু → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল (via Gopalganj and Bhanga), 7 barriers
+  - নড়াইল: মধুমতি সেতু (Kalna) → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল (via Bhatiapara and Bhanga), 6 barriers
+  - মুন্সীগঞ্জ: মুক্তারপুর সেতু (Dhaleshwari) → Panchabati → Postogola, 3 barriers; potato farms, the shortest run
+  - বান্দরবান: 1.1 km hill road → Keranihat → শাহ আমানত সেতু → মেঘনা-গোমতী সেতু → মেঘনা সেতু, 8 barriers
+
+  A start point can have its own four farms (`farms`: names, crops and farmers' lines); the others use the
+  default four.
 
   `generateRoute()` re-rolls the barrier positions, places and amounts every run
   (`ECONOMY.randomChanda`). The last barrier is always at the city entrance. Spacing rules are in
@@ -131,6 +140,25 @@ All numbers live in `src/config/`:
   dialog. The fine is ৳500 + ৳50 per km/h over (`speedFine` in `economy.ts`). It's a legal traffic fine
   (`FINE` in the ledger), so the result report counts it with tolls and road tax, not with chanda.
 
+## Aircraft
+
+Planes and helicopters cross the sky ahead of you on every route (`world/Aircraft.ts`, models in
+`world/AircraftModels.ts`, timing and heights in `AIRCRAFT` in `tuning.ts`). The types are the ones flying in
+Bangladesh, with fictional airline liveries:
+- **Airliners:** a wide-body twin (Boeing 787 class) and a narrow-body (737-800 class) cruise high and small
+  with contrails. Within 5 km of Karwan Bazar they come in low with their gear down, on approach to Shahjalal.
+- **Turboprop:** the domestic hopper (ATR 72 / Dash 8-400 class), with a high wing, a T-tail and spinning
+  six-blade propellers.
+- **Air Force fighters:** F-7BGI (nose intake, double-delta wing; often a vic of three) and MiG-29 (twin
+  engines, twin fins; often a pair). They make a fast low pass, in grey with green-and-red roundels and an
+  afterburner glow.
+- **Helicopters:** the Mi-17/Mi-171 (olive, five blades, fixed wheels) and a civil white Bell 212 (two
+  blades, skids). They sometimes follow the road.
+
+Each flight fades in and out at the ends of its pass and has synthesised sound with Doppler: jet roar,
+airliner rumble, turboprop drone and rotor slap. Navigation lights and flashing beacons show at dusk and
+night. `game.aircraft.spawn('mi17')` in the dev console sends one over now.
+
 ## Bridges
 
 - **Jamuna and Lalon Shah:** concrete box-girder bridges on twin piers, with a name arch over the road.
@@ -150,7 +178,7 @@ All numbers live in `src/config/`:
 The railway lines and trains are in `world/Railway.ts` (`TRAINS` and `HARDINGE` in `tuning.ts`). Route
 generation keeps the railway's stretch (`bridge.rail` in `route.ts`) clear of other events.
 
-- **Shah Amanat (Karnaphuli):** not on any route at the moment (kept for a Cox's Bazar start). Modelled on
+- **Shah Amanat (Karnaphuli):** on the বান্দরবান route. Modelled on
   the real extradosed bridge. A prestressed concrete box
   girder over 115 + 3 × 200 + 115 m spans (scaled), deeper at the four short pylons. The pylons stand in
   the median, each with a single plane of stay cables fanning down to the middle of the deck, and the
@@ -162,7 +190,10 @@ generation keeps the railway's stretch (`bridge.rail` in `route.ts`) clear of ot
 - **Syed Nazrul Islam (Bhairab):** a concrete box girder on wall piers. On its left are the 2017 railway
   bridge (concrete girders, trains run on it) and the old 1937 railway bridge (steel parallel-chord
   Warren through trusses on stone piers, `BHAIRAB_RAIL` in `tuning.ts`).
-- **Sherpur and Shambhuganj:** short plain concrete girder bridges on twin piers (`girder`).
+- **Madhumati (Kalna, 2022):** a steel network arch over the middle of the river (150 m of its 690 m, scaled).
+  Two arch ribs stand just outside the railings, tied at deck level, with crossing inclined hangers and wind
+  bracing high above the traffic. Concrete approach spans on twin round piers.
+- **Sherpur, Shambhuganj, Mollahat and Muktarpur:** plain concrete girder bridges on twin piers (`girder`).
 
 Deck heights and ramp lengths are in `ROAD.bridgeStyles`.
 

@@ -72,7 +72,7 @@ export class Bridge extends SetPiece<TollEvent> {
     const waterLen = len + 260;
     this.water = this.own(new THREE.Mesh(
       new THREE.PlaneGeometry(1800, waterLen).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466, shahAmanat: 0x6a7f7a, meghnaGumti: 0x7a8466, girder: 0x6f8476, bhairab: 0x768a80, payra: 0x6e8478, meghna: 0x74867c }[style], map: this.waterTex }),
+      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466, shahAmanat: 0x6a7f7a, meghnaGumti: 0x7a8466, girder: 0x6f8476, bhairab: 0x768a80, payra: 0x6e8478, meghna: 0x74867c, madhumati: 0x6c8274 }[style], map: this.waterTex }),
     ));
     this.water.position.set(0, 0.35, -(start + len / 2));
     this.group.add(this.water);
@@ -93,6 +93,7 @@ export class Bridge extends SetPiece<TollEvent> {
     else if (style === 'payra') this.extradosed(parts, start, len, deckY, slab, edge, 1470, [520, 635, 835, 950]);
     else if (style === 'meghnaGumti' || style === 'meghna') this.meghnaGumti(parts, start, len, slab, edge);
     else if (style === 'bhairab') this.bhairab(parts, start, len, slab, edge);
+    else if (style === 'madhumati') this.networkArch(parts, start, len, deckY, slab, edge);
     else if (!padma) {
       // Concrete box-girder bridge on twin round piers every 50 m
       for (let s = start + 25; s < end - 10; s += 50) {
@@ -269,6 +270,74 @@ export class Bridge extends SetPiece<TollEvent> {
     }
     // keep our traffic left of the median
     this.game.track.limits.push({ from: start - 2, to: start + len + 2, range: () => [-Infinity, -1.75] });
+  }
+
+  /**
+   * Madhumati Bridge at Kalna (2022): a steel network arch over the navigation channel, mid-river, with concrete
+   * approach spans on twin round piers. Two arch ribs stand just outside the railings, tied at deck level, with
+   * crossing inclined hangers (the "network") and wind bracing between the ribs high above the traffic.
+   * Real: 690 m long, a 150 m arch span (scaled to the game bridge).
+   */
+  private networkArch(parts: Part[], start: number, len: number, deckY: number, slab: number, edge: number): void {
+    const span = len * (150 / 690);
+    const a0 = start + (len - span) / 2;
+    const a1 = a0 + span;
+    const rise = span / 6;
+    const steel = 0xd3d7da;
+    const steelDark = 0x9aa1a6;
+    const ax = edge + 0.5;
+    const archY = (s: number) => deckY + 0.6 + rise * (1 - ((2 * (s - a0)) / span - 1) ** 2);
+    /** a straight member between (y0 at s0) and (y1 at s1), at x */
+    const beam = (x: number, s0: number, y0: number, s1: number, y1: number, t: number, color: number) => {
+      const dz = -(s1 - s0);
+      const dy = y1 - y0;
+      parts.push({ geo: box(t, t, Math.hypot(dy, dz)), color, p: [x, (y0 + y1) / 2, -(s0 + s1) / 2], r: [Math.atan2(-dy, dz), 0, 0] });
+    };
+    // approach spans: twin round piers every 40 m, a deck girder under the slab
+    for (let s = start + 20; s < start + len - 5; s += 40) {
+      if (s > a0 - 8 && s < a1 + 8) continue;
+      for (const d of [-edge * 0.45, edge * 0.45]) parts.push({ geo: cyl(0.9, 1.1, slab + 2, 10), color: 0xb9b3a6, p: [d, (slab - 2) / 2, -s] });
+      parts.push({ geo: box(edge * 2 - 1, 1.1, 2), color: 0xaaa497, p: [0, slab - 0.5, -s] });
+    }
+    parts.push({ geo: box(edge * 1.6, 1.6, len), color: 0xb5ae9f, p: [0, slab - 0.8, -(start + len / 2)] });
+    // the two big piers the arch stands on
+    for (const s of [a0, a1]) parts.push({ geo: box(edge * 2 + 3, slab + 1, 5), color: 0xc2bcae, p: [0, (slab - 1) / 2 - 0.5, -s] });
+    const N = 24;
+    for (const side of [-1, 1]) {
+      const x = side * ax;
+      // tie girder along the deck edge, and the rib itself
+      parts.push({ geo: box(1.1, 1.8, span), color: steelDark, p: [x, deckY - 0.3, -(a0 + span / 2)] });
+      for (let i = 0; i < N; i++) {
+        const s0 = a0 + (span * i) / N;
+        const s1 = a0 + (span * (i + 1)) / N;
+        beam(x, s0, archY(s0), s1, archY(s1), 1.3, steel);
+      }
+      // network hangers: each deck node reaches up to the rib ahead of and behind it, so they cross
+      const reach = span * 0.16;
+      for (let s = a0 + 5; s < a1 - 4; s += 5) {
+        for (const dir of [-1, 1]) {
+          const sa = s + dir * reach;
+          if (sa < a0 + 3 || sa > a1 - 3) continue;
+          beam(x, s, deckY + 0.6, sa, archY(sa) - 0.5, 0.09, 0xeef0f1);
+        }
+      }
+    }
+    // wind bracing between the ribs where they are well clear of the lorries: cross struts and X diagonals
+    const struts: number[] = [];
+    for (let s = a0 + span * 0.12; s <= a1 - span * 0.12 + 0.1; s += span / 9) if (archY(s) > deckY + 9) struts.push(s);
+    for (const s of struts) parts.push({ geo: box(ax * 2, 0.8, 0.8), color: steel, p: [0, archY(s), -s] });
+    for (let i = 0; i + 1 < struts.length; i++) {
+      const sA = struts[i];
+      const sB = struts[i + 1];
+      const yA = archY(sA);
+      const yB = archY(sB);
+      const dz = sB - sA;
+      const L = Math.hypot(ax * 2, dz);
+      const yaw = Math.atan2(ax * 2, dz);
+      for (const sign of [-1, 1]) {
+        parts.push({ geo: box(0.4, 0.4, L), color: steelDark, p: [0, (yA + yB) / 2, -(sA + sB) / 2], r: [0, sign * yaw, 0] });
+      }
+    }
   }
 
   /**

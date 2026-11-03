@@ -6,6 +6,15 @@ import { ENGINE_SOUND, FINAL_CRASH_SOUND } from '../config/tuning';
 
 const MUTE_KEY = 'sobjir-truck-muted';
 
+/** jet = fighter roar, airliner = distant rumble and whine, prop = turboprop drone, rotor = blade slap */
+export type AircraftSound = 'jet' | 'airliner' | 'prop' | 'rotorHeavy' | 'rotorLight';
+
+/** A looping aircraft sound: level 0..1 (from distance), pitch ~1 (Doppler). */
+export interface AircraftVoice {
+  set(level: number, pitch: number): void;
+  stop(): void;
+}
+
 /** The recorded engine: idle and running loops (crossfaded by speed) and one-shot parts. */
 interface SampleEngine {
   buffer: AudioBuffer;
@@ -113,6 +122,108 @@ export class Sound {
     this.rainGain.gain.value = 0;
     rain.connect(rf).connect(this.rainGain).connect(this.master);
     rain.start(0, 0.7);
+  }
+
+  /** A looping sound for one aircraft, or null before the first user gesture. */
+  aircraftVoice(kind: AircraftSound): AircraftVoice | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    out.connect(this.master);
+    const srcs: AudioScheduledSourceNode[] = [];
+    const noise = () => {
+      const n = ctx.createBufferSource();
+      n.buffer = this.noise;
+      n.loop = true;
+      n.start(0, Math.random() * 1.5);
+      srcs.push(n);
+      return n;
+    };
+    const filter = (type: BiquadFilterType, freq: number, q = 0.7) => {
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      return f;
+    };
+    const osc = (type: OscillatorType, freq: number) => {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = freq;
+      o.start();
+      srcs.push(o);
+      return o;
+    };
+    // things that follow the pitch: [param, base value]
+    const tuned: [AudioParam, number][] = [];
+    let peak = 0.3;
+    if (kind === 'jet') {
+      // a tearing roar: broad low-passed noise plus a growling band
+      const lp = filter('lowpass', 1800, 0.4);
+      const band = filter('bandpass', 420, 0.8);
+      const bandGain = ctx.createGain();
+      bandGain.gain.value = 0.8;
+      noise().connect(lp).connect(out);
+      noise().connect(band).connect(bandGain).connect(out);
+      tuned.push([lp.frequency, 1800], [band.frequency, 420]);
+      peak = 0.75;
+    } else if (kind === 'airliner') {
+      const lp = filter('lowpass', 320, 0.5);
+      noise().connect(lp).connect(out);
+      const whine = osc('sine', 1850);
+      const wg = ctx.createGain();
+      wg.gain.value = 0.025;
+      whine.connect(wg).connect(out);
+      tuned.push([lp.frequency, 320], [whine.frequency, 1850]);
+      peak = 0.4;
+    } else if (kind === 'prop') {
+      const drone = osc('sawtooth', 96);
+      const lp = filter('lowpass', 650, 0.8);
+      const dg = ctx.createGain();
+      dg.gain.value = 0.35;
+      drone.connect(lp).connect(dg).connect(out);
+      const nlp = filter('lowpass', 500, 0.5);
+      noise().connect(nlp).connect(out);
+      tuned.push([drone.frequency, 96], [lp.frequency, 650]);
+      peak = 0.35;
+    } else {
+      // rotor: noise and a low thump chopped by the blade-pass frequency
+      const heavy = kind === 'rotorHeavy';
+      const bladeHz = heavy ? 16 : 11;
+      const chop = ctx.createGain();
+      chop.gain.value = 0.35;
+      const lfo = osc('square', bladeHz);
+      const depth = ctx.createGain();
+      depth.gain.value = 0.32;
+      lfo.connect(depth).connect(chop.gain);
+      const lp = filter('lowpass', heavy ? 520 : 700, 0.9);
+      noise().connect(lp).connect(chop);
+      const thump = osc('sine', heavy ? 42 : 55);
+      const tg = ctx.createGain();
+      tg.gain.value = 0.6;
+      thump.connect(tg).connect(chop);
+      chop.connect(out);
+      tuned.push([lfo.frequency, bladeHz], [lp.frequency, heavy ? 520 : 700]);
+      peak = heavy ? 0.6 : 0.45;
+    }
+    let stopped = false;
+    return {
+      set: (level, pitch) => {
+        if (stopped) return;
+        const now = ctx.currentTime;
+        out.gain.setTargetAtTime(Math.max(0, Math.min(1, level)) * peak, now, 0.08);
+        for (const [param, base] of tuned) param.setTargetAtTime(base * pitch, now, 0.08);
+      },
+      stop: () => {
+        if (stopped) return;
+        stopped = true;
+        const now = ctx.currentTime;
+        out.gain.setTargetAtTime(0, now, 0.1);
+        for (const s of srcs) s.stop(now + 0.6);
+        setTimeout(() => out.disconnect(), 800);
+      },
+    };
   }
 
   setRain(level: number): void {

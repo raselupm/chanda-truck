@@ -32,6 +32,7 @@ import { Roadworks } from '../world/Roadworks';
 import { Mud } from '../world/Mud';
 import { Thieves } from '../world/Thieves';
 import { Environment } from '../world/Environment';
+import { Aircraft } from '../world/Aircraft';
 import { Exhaust } from '../world/Exhaust';
 import { Pedestrians } from '../world/Pedestrians';
 import { RailCrossing } from '../world/RailCrossing';
@@ -88,6 +89,7 @@ export class Game {
   private shortcuts: ShortcutRoads;
   private hillRoad = new HillRoad(this);
   readonly exhaust = new Exhaust();
+  readonly aircraft = new Aircraft(this);
   /** seconds of heavy smoke left from the engine starting */
   private smokeKick = 0;
   /** fell off the hill road: which side, and for how long (the truck tumbles into the valley) */
@@ -140,7 +142,7 @@ export class Game {
     this.mud = new Mud(this);
     this.clutter = new CityClutter(this.track);
     this.shortcuts = new ShortcutRoads(this);
-    scene.add(this.shortcuts.group, this.hillRoad.group, this.exhaust.points);
+    scene.add(this.shortcuts.group, this.hillRoad.group, this.exhaust.points, this.aircraft.group);
     scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group, this.ads.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
@@ -351,6 +353,7 @@ export class Game {
     this.state.force('FARM');
     this.sound.engineStart();
     this.exhaust.reset();
+    this.aircraft.reset();
     this.smokeKick = EXHAUST.player.startKick;
     this.hud.setRoute(this.route);
     this.hud.show(true);
@@ -402,6 +405,7 @@ export class Game {
     this.thieves.reset();
     this.mud.reset();
     this.exhaust.reset();
+    this.aircraft.reset();
     this.state.force('MENU');
     this.menu.show(true);
   }
@@ -768,6 +772,7 @@ export class Game {
     this.cam.update(dt, t);
     if (!this.state.paused) this.weather.update(dt);
     const look = this.weather.look;
+    this.aircraft.update(dt, look.headlights, this.state.paused);
     if (this.cam.mode === 'cockpit' && this.cockpit) {
       const throttle = this.state.paused || this.modal ? 0 : this.input.throttle;
       this.cockpit.update(this.state.paused ? 0 : dt, this.cam.camera, { kmh: t.kmh, steer: t.steer, throttle, look, flash: this.weather.flash });

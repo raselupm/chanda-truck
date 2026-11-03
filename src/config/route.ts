@@ -30,7 +30,7 @@ export interface BarrierEvent extends EventBase {
   workers: number;
 }
 
-export type BridgeStyle = 'jamuna' | 'padma' | 'lalon' | 'shahAmanat' | 'meghnaGumti' | 'girder' | 'bhairab' | 'payra' | 'meghna';
+export type BridgeStyle = 'jamuna' | 'padma' | 'lalon' | 'shahAmanat' | 'meghnaGumti' | 'girder' | 'bhairab' | 'payra' | 'meghna' | 'madhumati';
 
 export interface TollEvent extends EventBase {
   /** roadTax = ROAD_TAX ledger category; roadToll / bridgeToll = TOLL */
@@ -133,6 +133,8 @@ export interface StartPoint {
   /** metres of hill road between the village and the highway */
   hill?: number;
   farmsBn: string;
+  /** this district's own farms (names, crops, farmers' lines), in place of the default four, in order */
+  farms?: Pick<FarmEvent, 'nameBn' | 'vegetables' | 'farmerLineBn'>[];
 }
 
 const LALON: LegalStop = {
@@ -150,7 +152,7 @@ const PADMA: LegalStop = {
   id: 'padma', type: 'bridgeToll', feeKey: 'padmaToll', nameBn: 'পদ্মা সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'পদ্মা সেতু', style: 'padma', offset: 520, length: 760, rail: 1_300 },
 };
-/** On the Chattogram–Cox's Bazar road (not on any route yet; kept for a Cox's Bazar start). */
+/** On the Chattogram–Cox's Bazar road (N1 south of Chattogram): the Bandarban route crosses it. */
 export const SHAH_AMANAT: LegalStop = {
   id: 'shahAmanat', type: 'bridgeToll', feeKey: 'shahAmanatToll', nameBn: 'শাহ আমানত সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'শাহ আমানত সেতু', style: 'shahAmanat', offset: 300, length: 600 },
@@ -178,6 +180,21 @@ const PAYRA: LegalStop = {
 const MEGHNA: LegalStop = {
   id: 'meghna', type: 'bridgeToll', feeKey: 'meghnaToll', nameBn: 'মেঘনা সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'মেঘনা সেতু', style: 'meghna', offset: 300, length: 600 },
+};
+/** Mollahat Bridge over the Madhumati on the Khulna–Gopalganj road (N805). */
+const MOLLAHAT: LegalStop = {
+  id: 'mollahat', type: 'bridgeToll', feeKey: 'mollahatToll', nameBn: 'মোল্লাহাট সেতু টোল', icon: '{bridge}', small: true,
+  bridge: { nameBn: 'মোল্লাহাট সেতু', style: 'girder', offset: 300, length: 300 },
+};
+/** Madhumati Bridge at Kalna (2022, the country's first six-lane bridge): a 690 m steel network arch. */
+const MADHUMATI: LegalStop = {
+  id: 'madhumati', type: 'bridgeToll', feeKey: 'madhumatiToll', nameBn: 'মধুমতি সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'মধুমতি সেতু (কালনা)', style: 'madhumati', offset: 300, length: 600 },
+};
+/** Muktarpur Bridge (6th Bangladesh-China Friendship Bridge, 2008) over the Dhaleshwari, 1.52 km. */
+const MUKTARPUR: LegalStop = {
+  id: 'muktarpur', type: 'bridgeToll', feeKey: 'muktarpurToll', nameBn: 'মুক্তারপুর সেতু টোল', icon: '{bridge}',
+  bridge: { nameBn: 'মুক্তারপুর সেতু', style: 'girder', offset: 300, length: 560 },
 };
 const EXPRESSWAY: LegalStop = {
   id: 'expressway', type: 'roadToll', feeKey: 'expresswayToll', nameBn: 'এক্সপ্রেসওয়ে টোল', icon: '{road}',
@@ -263,6 +280,98 @@ export const START_POINTS: StartPoint[] = [
     randomBarriers: 6,
     farmsBn: 'কুমিল্লার সবজি ক্ষেত',
   },
+  {
+    // N5: Rangpur → Pirganj → Palashbari → Gobindaganj → Bogura → Hatikumrul → Jamuna Bridge → Elenga
+    id: 'rangpur',
+    nameBn: 'রংপুর',
+    pathBn: 'পলাশবাড়ী → গোবিন্দগঞ্জ → বগুড়া → হাটিকুমরুল → যমুনা সেতু',
+    legal: [JAMUNA],
+    randomBarriers: 10,
+    farmsBn: 'রংপুরের আলু-সবজির ক্ষেত',
+    farms: [
+      { nameBn: 'মমিন চাচার আলুক্ষেত', vegetables: ['potato', 'tomato'], farmerLineBn: 'আলু তো মাটির দামে বেচি, হিমাগারে জায়গাও নাই।' },
+      { nameBn: 'সুফিয়া খালার ক্ষেত', vegetables: ['cabbage', 'cauliflower'], farmerLineBn: 'বাপু, ঢাকা অনেক দূর — রাস্তায় যা যায়, সেটাই আসল খরচ।' },
+      { nameBn: 'আফজাল ভাইয়ের ক্ষেত', vegetables: ['brinjal', 'chili', 'gourd'], farmerLineBn: 'মরিচ এবার লাল টুকটুকে, দাম কিন্তু ফ্যাকাশে।' },
+      { nameBn: 'তিস্তা পাড়ের চর', vegetables: ['potato', 'onion', 'tomato'], farmerLineBn: 'চরের বালুতে ফলাইছি, পানি টানতে টানতে কোমর শেষ।' },
+    ],
+  },
+  {
+    // Pabna → Kashinathpur → Baghabari (Hurasagar) → Shahjadpur → Hatikumrul → Jamuna Bridge → Elenga
+    id: 'pabna',
+    nameBn: 'পাবনা',
+    pathBn: 'কাশিনাথপুর → বাঘাবাড়ী → হাটিকুমরুল → যমুনা সেতু',
+    legal: [JAMUNA],
+    randomBarriers: 7,
+    farmsBn: 'সুজানগরের পেঁয়াজের ক্ষেত',
+    farms: [
+      { nameBn: 'গাজনার বিলের পেঁয়াজক্ষেত', vegetables: ['onion'], farmerLineBn: 'পেঁয়াজের রাজধানী পাবনা, কিন্তু রাজার পকেট ফাঁকা।' },
+      { nameBn: 'হালিমা খালার ক্ষেত', vegetables: ['onion', 'chili'], farmerLineBn: 'ঢাকায় পেঁয়াজ নব্বই, আমি পাই তিরিশ। বাকিটা কই যায়?' },
+      { nameBn: 'বাদশা মিয়ার ক্ষেত', vegetables: ['brinjal', 'tomato'], farmerLineBn: 'বেগুনে এবার পোকা কম, দামটাও কম।' },
+      { nameBn: 'সুজানগরের চাষি সমিতি', vegetables: ['onion', 'potato', 'gourd'], farmerLineBn: 'একসাথে নিয়া যাও, ট্রাক ভাড়া ভাগ করি।' },
+    ],
+  },
+  {
+    // N7/N805: Khulna → Fakirhat → Mollahat Bridge → Gopalganj → Bhanga → Padma Bridge → Dhaka–Mawa Expressway
+    id: 'khulna',
+    nameBn: 'খুলনা',
+    pathBn: 'মোল্লাহাট সেতু → গোপালগঞ্জ → ভাঙ্গা → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল',
+    legal: [MOLLAHAT, PADMA, EXPRESSWAY],
+    randomBarriers: 7,
+    farmsBn: 'ডুমুরিয়ার সবজি ক্ষেত',
+    farms: [
+      { nameBn: 'ডুমুরিয়ার ঘেরের আইল', vegetables: ['gourd', 'tomato'], farmerLineBn: 'ঘেরের আইলে লাউ ঝুলাইছি, মাছের চেয়ে লাউ বেশি!' },
+      { nameBn: 'রাশেদা খালার ক্ষেত', vegetables: ['brinjal', 'chili'], farmerLineBn: 'নোনা পানি ঢুকলে সব শেষ, তাড়াতাড়ি নিয়া যাও।' },
+      { nameBn: 'কামাল মোল্লার ক্ষেত', vegetables: ['cabbage', 'cauliflower', 'tomato'], farmerLineBn: 'পদ্মা সেতু হইছে, এখন ঢাকা কাছে — চাঁদা কিন্তু দূরে যায় নাই।' },
+      { nameBn: 'ফকিরহাটের বাজার মাঠ', vegetables: ['potato', 'onion'], farmerLineBn: 'পাইকার বলে দাম কম, ঢাকায় শুনি আগুন।' },
+    ],
+  },
+  {
+    // Narail → Kalna (Madhumati Bridge) → Bhatiapara → Bhanga → Padma Bridge → Dhaka–Mawa Expressway
+    id: 'narail',
+    nameBn: 'নড়াইল',
+    pathBn: 'কালনা মধুমতি সেতু → ভাটিয়াপাড়া → ভাঙ্গা → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল',
+    legal: [MADHUMATI, PADMA, EXPRESSWAY],
+    randomBarriers: 6,
+    farmsBn: 'নড়াইলের সবজি ক্ষেত',
+    farms: [
+      { nameBn: 'চিত্রা পাড়ের ক্ষেত', vegetables: ['tomato', 'chili'], farmerLineBn: 'কালনায় সেতু হইছে, ফেরির লাইনে আর পচে না মাল।' },
+      { nameBn: 'মর্জিনা খালার ক্ষেত', vegetables: ['potato', 'onion'], farmerLineBn: 'সেতুর টোল দিবা, চাঁদাও দিবা — আমারে দিবা কম।' },
+      { nameBn: 'লোহাগড়ার হাট মাঠ', vegetables: ['brinjal', 'gourd', 'cauliflower'], farmerLineBn: 'বেগুন নিয়া যাও, ঢাকায় বেগুনি হবে।' },
+      { nameBn: 'রফিক ভাইয়ের ক্ষেত', vegetables: ['cabbage', 'tomato'], farmerLineBn: 'বাঁধাকপি বড় হইছে, দাম ছোট।' },
+    ],
+  },
+  {
+    // Munshiganj → Muktarpur Bridge (Dhaleshwari) → Panchabati → Postogola → Jatrabari
+    id: 'munshiganj',
+    nameBn: 'মুন্সীগঞ্জ',
+    pathBn: 'মুক্তারপুর সেতু → পঞ্চবটী → পোস্তগোলা → যাত্রাবাড়ী',
+    legal: [MUKTARPUR],
+    randomBarriers: 3,
+    farmsBn: 'মুন্সীগঞ্জের আলুক্ষেত',
+    farms: [
+      { nameBn: 'টঙ্গিবাড়ীর আলুক্ষেত', vegetables: ['potato'], farmerLineBn: 'আলু আলু আর আলু — কোল্ড স্টোরের ভাড়াই আলুর দামের অর্ধেক।' },
+      { nameBn: 'সিরাজদিখানের ক্ষেত', vegetables: ['potato', 'onion'], farmerLineBn: 'ঢাকা তো চোখের সামনে, তবু দাম পাই না।' },
+      { nameBn: 'নাসিমা খালার ক্ষেত', vegetables: ['tomato', 'chili'], farmerLineBn: 'রাস্তা ছোট, চাঁদা কম — তবু চাঁদা তো চাঁদাই।' },
+      { nameBn: 'আব্দুল চাচার ক্ষেত', vegetables: ['potato', 'cabbage', 'cauliflower'], farmerLineBn: 'বিক্রমপুরের আলু, স্বাদে সেরা — দামে না।' },
+    ],
+  },
+  {
+    // Bandarban → hill road → Keranihat (N1) → Shah Amanat Bridge (Karnaphuli) → Chattogram → Feni → Cumilla
+    // → Daudkandi (Meghna-Gumti) → Meghnaghat (Meghna) → Kanchpur
+    id: 'bandarban',
+    nameBn: 'বান্দরবান',
+    pathBn: 'পাহাড়ি রাস্তা → কেরানীহাট → শাহ আমানত সেতু → মেঘনা-গোমতী সেতু → মেঘনা সেতু',
+    legal: [SHAH_AMANAT, MEGHNA_GUMTI, MEGHNA],
+    randomBarriers: 8,
+    hill: 1_100,
+    farmsBn: 'বান্দরবানের জুমের ক্ষেত',
+    farms: [
+      { nameBn: 'পাহাড়ের জুম ক্ষেত', vegetables: ['chili', 'gourd'], farmerLineBn: 'জুমের মরিচ, ঝালে সেরা — পাহাড় থেকে নামাতেই খরচ।' },
+      { nameBn: 'সাঙ্গু পাড়ের ক্ষেত', vegetables: ['tomato', 'cabbage'], farmerLineBn: 'বর্ষায় রাস্তা ভাঙে, তখন মাল নষ্ট।' },
+      { nameBn: 'মংসিং দাদার বাগান', vegetables: ['brinjal', 'cauliflower', 'gourd'], farmerLineBn: 'চট্টগ্রাম পর্যন্ত চাঁদা, তারপর ঢাকা পর্যন্ত আরও চাঁদা।' },
+      { nameBn: 'কেরানীহাটের পাইকারি মাঠ', vegetables: ['potato', 'onion', 'tomato'], farmerLineBn: 'পাহাড়ের সবজি ঢাকায় গেলে সোনা, এখানে মাটি।' },
+    ],
+  },
 ];
 
 export const DEFAULT_START_ID = 'jessore';
@@ -337,7 +446,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   const shortcuts: ShortcutDef[] = [];
 
   const places = [...BARRIER_PLACES].sort(() => rng() - 0.5);
-  const events: RouteEvent[] = [...FARMS];
+  const events: RouteEvent[] = FARMS.map((f, i) => ({ ...f, ...sp.farms?.[i] }));
   const townZones: [number, number][] = [];
   const broken: [number, number][] = [];
   // The hill road starts where the village road meets the highway; the events begin after it

@@ -84,6 +84,8 @@ export const ROAD = {
     // Payra (Lebukhali): extradosed like Shah Amanat, high over the river
     payra: { deck: 12, ramp: 260 },
     meghna: { deck: 9, ramp: 210 },
+    // Madhumati (Kalna): steel network arch over the navigation channel, concrete approach spans
+    madhumati: { deck: 11, ramp: 240 },
   },
   /** straight road kept before / after every event (set pieces sit on x = 0) */
   straightBefore: 260,
@@ -417,6 +419,33 @@ export const JUNCTION = {
 } as const;
 
 /** Thieves who grab vegetables off the truck while it crawls through a jam. */
+/**
+ * Aircraft overhead (world/Aircraft.ts), on every route. Each flight is a straight pass across the sky ahead of
+ * the truck. kind weights pick what comes next; near Dhaka (approachRange metres before the market) airliners
+ * and turboprops come in low with their gear down, on the way into Shahjalal.
+ * Per kind: alt = height above the truck (m), ahead = how far in front of the truck the pass goes over (m),
+ * speed (m/s in the world), scale (high airliners are drawn small so they look far away), pass = how far the
+ * flight path runs (m). The chase camera only sees ~17° above the horizon, so alt/ahead stays under ~0.2.
+ */
+export const AIRCRAFT = {
+  gapMin: 12,
+  gapMax: 30,
+  /** the first flight after a run starts */
+  firstAfter: 6,
+  maxAtOnce: 2,
+  approachRange: 5_000,
+  weights: { wideBody: 0.12, narrowBody: 0.16, turboprop: 0.16, f7: 0.14, mig29: 0.1, mi17: 0.18, bell212: 0.14 },
+  cruise: { alt: [60, 80], ahead: [330, 440], speed: 9, scale: 0.05, pass: 700 },
+  turboprop: { alt: [42, 60], ahead: [280, 400], speed: 16, scale: 0.4, pass: 750 },
+  approach: { alt: [34, 52], ahead: [240, 360], speed: 30, scale: 0.5, pass: 800, descent: 0.03 },
+  fighter: { alt: [26, 50], ahead: [200, 360], speed: 150, scale: 1, pass: 1_300 },
+  helicopter: { alt: [20, 42], ahead: [160, 300], speed: 30, scale: 1, pass: 800, alongRoad: 0.45 },
+  /** fighters come in pairs (MiG-29) or a vic of three (F-7) this often, else alone */
+  formation: 0.75,
+  /** fraction of the pass spent fading in and out at its ends */
+  fade: 0.18,
+} as const;
+
 export const THIEVES = {
   /** only while the truck is slower than this */
   maxKmh: 15,

@@ -30,6 +30,9 @@ export const ECONOMY = {
     shambhuganjToll: 200,
     payraToll: 400,
     meghnaToll: 650,
+    mollahatToll: 100,
+    madhumatiToll: 550,
+    muktarpurToll: 400,
   },
 
   /** % of current cargo kg lost in each situation */
