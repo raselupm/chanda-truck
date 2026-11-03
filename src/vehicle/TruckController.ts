@@ -6,7 +6,8 @@ import { clamp, damp, lerp } from '../utils/math';
 import type { Shortcut } from '../world/Shortcut';
 import type { Track } from '../world/Track';
 
-const HALF_LEN = TRUCK.length / 2;
+/** half the truck's length (changes with the chosen truck) */
+const halfLen = () => TRUCK.length / 2;
 
 export class TruckController {
   x = 0;
@@ -55,7 +56,7 @@ export class TruckController {
   }
 
   get frontS(): number {
-    return this.s + HALF_LEN * Math.cos(this.heading - this.roadHeading(this.s));
+    return this.s + halfLen() * Math.cos(this.heading - this.roadHeading(this.s));
   }
 
   /** Heading of the road the truck is on. */
@@ -64,7 +65,7 @@ export class TruckController {
   }
 
   get rearS(): number {
-    return this.s - HALF_LEN;
+    return this.s - halfLen();
   }
 
   reset(s: number, d: number): void {
@@ -172,9 +173,9 @@ export class TruckController {
       s = this.minS;
       if (this.speed < 0) this.speed = 0;
     }
-    const front = s + HALF_LEN;
+    const front = s + halfLen();
     if (front > this.maxFrontS) {
-      s = this.maxFrontS - HALF_LEN;
+      s = this.maxFrontS - halfLen();
       if (this.speed > 0) this.speed = 0;
     }
 

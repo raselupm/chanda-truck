@@ -3,6 +3,7 @@
 // or drive off without them and lose. The tyres leave mud prints on the grass, and for a moment on the road.
 
 import * as THREE from 'three';
+import { activeTruck } from '../config/trucks';
 import { MUD, ROAD, SHORTCUT, TRUCK } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { canvasTexture } from '../utils/textures';
@@ -19,9 +20,6 @@ interface Helper {
   phase: number;
 }
 
-/** wheel positions in truck space (x right, z back), from the truck model */
-const WHEELS: [number, number][] = [[-1.08, -2.75], [1.08, -2.75], [-1.08, 3.1], [1.08, 3.1]];
-const HALF_LEN = TRUCK.length / 2;
 const CAB_OFF = 2.6;
 
 function mudTexture(): THREE.CanvasTexture {
@@ -216,7 +214,7 @@ export class Mud {
   /** hands on the tailboard */
   private pushSpot(h: Helper): [number, number] {
     const tr = this.game.truck;
-    return [tr.s - HALF_LEN - 0.45, tr.d + h.side * 0.65];
+    return [tr.s - TRUCK.length / 2 - 0.45, tr.d + h.side * 0.65];
   }
 
   private placeAtDoor(h: Helper): void {
@@ -289,7 +287,7 @@ export class Mud {
     const fx = Math.sin(h);
     const fz = -Math.cos(h);
     this.q.setFromAxisAngle(this.up, -h);
-    for (const [x, z] of WHEELS) {
+    for (const [x, z] of activeTruck().wheels) {
       if (!off && z < 0) continue; // on the road only the rear wheels still carry mud
       const wx = tr.x + Math.cos(h) * x - fx * z;
       const wz = tr.z + Math.sin(h) * x - fz * z;

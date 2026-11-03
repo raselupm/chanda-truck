@@ -55,7 +55,7 @@ async function boot(): Promise<void> {
 
   initAnalytics();
   const debug = new DebugOverlay(uiRoot, renderer);
-  const game = new Game(scene, camera, uiRoot, debug);
+  const game = new Game(scene, camera, uiRoot, debug, renderer);
   // Handy for tuning from the browser console during development
   if (import.meta.env.DEV) (window as unknown as { game: Game }).game = game;
 

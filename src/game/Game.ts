@@ -5,7 +5,8 @@ import { Sound } from '../audio/Sound';
 import { ECONOMY } from '../config/economy';
 import { EXHAUST, TRAFFIC } from '../config/tuning';
 import { DEFAULT_START_ID, generateRoute, START_POINTS, type FarmEvent, type RouteDef } from '../config/route';
-import { VEGETABLES, type VegId } from '../config/vegetables';
+import { activeTruck, chandaFor, feeFor, selectTruck, TRUCKS, type TruckId } from '../config/trucks';
+import { VEG_LIST, VEGETABLES, type VegId } from '../config/vegetables';
 import { track } from '../net/analytics';
 import { player, submitRun } from '../net/leaderboard';
 import { BuyPanel } from '../ui/BuyPanel';
@@ -18,7 +19,7 @@ import { formatKg, formatTaka, toBnDigits } from '../utils/bnNumber';
 import { CameraRig } from '../vehicle/CameraRig';
 import { Cockpit } from '../vehicle/Cockpit';
 import { Chasers } from '../vehicle/Chasers';
-import { MAX_CRATES, Truck } from '../vehicle/Truck';
+import { Truck } from '../vehicle/Truck';
 import { TruckController } from '../vehicle/TruckController';
 import { AdBoards } from '../world/AdBoards';
 import { Barrier } from '../world/Barrier';
@@ -123,7 +124,7 @@ export class Game {
   private hornHeld = 0;
   private longHornSent = false;
 
-  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, uiRoot: HTMLElement, private debug: DebugOverlay) {
+  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, uiRoot: HTMLElement, private debug: DebugOverlay, private renderer: THREE.WebGLRenderer) {
     this.track = new Track(this.route);
     this.env = new Environment(scene);
     this.streamer = new RoadStreamer(this.track);
@@ -155,7 +156,11 @@ export class Game {
       onReplay: () => this.start(this.startId),
       onHome: () => this.goHome(),
     });
-    this.menu = new Menu(uiRoot, this.sound, (id) => this.start(id));
+    this.menu = new Menu(uiRoot, this.sound, {
+      onStart: (id, truck) => this.start(id, truck),
+      onTruck: (truck) => this.setTruck(truck),
+      thumbnail: (truck) => this.truckThumbnail(truck),
+    });
     rotateHint(uiRoot);
 
     this.input.on('camera', () => this.toggleCamera());
@@ -244,9 +249,75 @@ export class Game {
     this.result.hide();
   }
 
+  /** Switch the truck being driven (from the menu; the idle truck behind it changes too). */
+  setTruck(id: TruckId): void {
+    selectTruck(id);
+    this.truckModel.setType(id);
+    if (this.state.phase === 'MENU') {
+      this.truck.reset(30, -1.6);
+      this.cam.snap(this.truck);
+    }
+  }
+
+  /** A side-on photo of one of the trucks with a full load, for the menu (data URL). */
+  private truckThumbnail(id: TruckId): string {
+    const w = 320;
+    const h = 180;
+    const m = this.truckModel;
+    const parent = m.root.parent;
+    const was = { type: m.type, pos: m.root.position.clone(), rot: m.root.rotation.clone() };
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xdfefff, 0x6b5a3a, 1.6));
+    const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
+    sun.position.set(-6, 10, -4);
+    scene.add(sun);
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x55585c }));
+    scene.add(road);
+    m.setType(id);
+    m.setHeadlights(0);
+    m.setCrates(Array.from({ length: m.maxCrates }, (_, i) => VEG_LIST[i % VEG_LIST.length].color));
+    m.root.position.set(0, 0, 0);
+    m.root.rotation.set(0, 0, 0);
+    scene.add(m.root);
+    // front three-quarter view, framed to the truck's length
+    const len = TRUCKS[id].physics.length ?? 8;
+    const cam = new THREE.PerspectiveCamera(30, w / h, 0.1, 100);
+    cam.position.set(-len * 1.05, len * 0.42, -len * 0.95);
+    cam.lookAt(0, len * 0.16, len * 0.06);
+
+    const r = this.renderer;
+    const prevColor = r.getClearColor(new THREE.Color());
+    const prevAlpha = r.getClearAlpha();
+    const size = r.getSize(new THREE.Vector2());
+    r.setClearColor(0xa9cbe6, 1);
+    r.setScissorTest(true);
+    r.setScissor(0, 0, w, h);
+    r.setViewport(0, 0, w, h);
+    r.render(scene, cam);
+    const dpr = r.getPixelRatio();
+    const out = document.createElement('canvas');
+    out.width = w * dpr;
+    out.height = h * dpr;
+    // read the corner back straight away, before the browser shows the frame
+    out.getContext('2d')!.drawImage(r.domElement, 0, r.domElement.height - h * dpr, w * dpr, h * dpr, 0, 0, w * dpr, h * dpr);
+    r.setScissorTest(false);
+    r.setViewport(0, 0, size.x, size.y);
+    r.setClearColor(prevColor, prevAlpha);
+
+    road.geometry.dispose();
+    (road.material as THREE.Material).dispose();
+    parent?.add(m.root);
+    m.root.position.copy(was.pos);
+    m.root.rotation.copy(was.rot);
+    m.setType(was.type);
+    this.refreshCrates();
+    return out.toDataURL('image/jpeg', 0.85);
+  }
+
   /** Start a run from a district; barrier positions are re-rolled every run. */
-  start(startId: string): void {
+  start(startId: string, truckId: TruckId = this.truckModel.type): void {
     this.trackQuit('restart');
+    this.setTruck(truckId);
     this.startId = START_POINTS.some((p) => p.id === startId) ? startId : DEFAULT_START_ID;
     this.route = generateRoute(this.startId);
     this.closeOverlays();
@@ -285,7 +356,7 @@ export class Game {
     this.hud.show(true);
     this.touch.show(true);
     this.hud.warn('{farm} ক্ষেতের পাশের সবুজ জায়গায় থেমে সবজি কিনুন', 'info', 4);
-    track('level_start', { level_name: this.startId, route: this.startId, run_number: ++this.runCount });
+    track('level_start', { level_name: this.startId, route: this.startId, truck: activeTruck().id, run_number: ++this.runCount });
   }
 
   /** the start point of the current run */
@@ -364,7 +435,7 @@ export class Game {
   buy(veg: VegId, kg: number, locationBn: string): void {
     const v = VEGETABLES[veg];
     const affordable = Math.floor(this.cash / v.farmPricePerKg);
-    kg = Math.min(kg, affordable, ECONOMY.truckCapacityKg - this.cargo.totalKg);
+    kg = Math.min(kg, affordable, activeTruck().capacityKg - this.cargo.totalKg);
     if (kg <= 0) return;
     const cost = kg * v.farmPricePerKg;
     this.cash -= cost;
@@ -380,17 +451,18 @@ export class Game {
     let legal = 0;
     let chanda = 0;
     for (const e of this.route.events) {
-      if (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') legal += ECONOMY.fees[e.feeKey];
-      if (e.type === 'barrier') chanda += e.chanda;
+      if (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') legal += feeFor(e.feeKey);
+      if (e.type === 'barrier') chanda += chandaFor(e.chanda);
     }
     return { legal, chanda };
   }
 
   private refreshCrates(): void {
     const kg = this.cargo.totalKg;
-    const n = kg > 0 ? Math.max(1, Math.round((kg / ECONOMY.truckCapacityKg) * MAX_CRATES)) : 0;
+    const max = this.truckModel.maxCrates;
+    const n = kg > 0 && max > 0 ? Math.max(1, Math.round((kg / activeTruck().capacityKg) * max)) : 0;
     this.truckModel.setCrates(this.cargo.crateColors(n));
-    this.truck.loadFrac = kg / ECONOMY.truckCapacityKg;
+    this.truck.loadFrac = kg / activeTruck().capacityKg;
   }
 
   /** Chanda, a toll or a fine: taken right away (cash first, then cargo) and booked in the ledger. */
@@ -574,7 +646,7 @@ export class Game {
     // hardest pulling at low speed, easing off near top speed
     const pull = Math.max(this.smokeKick / P.startKick, throttle * Math.max(0, 1 - t.kmh / 110));
     const m = this.truckModel.root;
-    this.exhaust.emit(dt, m.position.x, m.position.y, m.position.z, m.rotation.y, t.speed, P,
+    this.exhaust.emit(dt, m.position.x, m.position.y, m.position.z, m.rotation.y, t.speed, { ...P, pipe: activeTruck().pipe },
       P.rate + (P.accelRate - P.rate) * pull, P.size + (P.accelSize - P.size) * pull, P.alpha + (P.accelAlpha - P.alpha) * pull);
   }
 

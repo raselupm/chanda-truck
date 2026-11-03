@@ -2,6 +2,7 @@
 
 import { ECONOMY } from '../config/economy';
 import type { FarmEvent } from '../config/route';
+import { activeTruck } from '../config/trucks';
 import { VEGETABLES, type VegId } from '../config/vegetables';
 import type { Game } from '../game/Game';
 import { formatBn, formatKg, formatTaka, formatTakaPerKg } from '../utils/bnNumber';
@@ -109,7 +110,7 @@ export class BuyPanel {
   private maxFor(row: Row): number {
     const g = this.game;
     const other = this.pendingTotal(row);
-    const capLeft = ECONOMY.truckCapacityKg - g.cargo.totalKg - other.kg;
+    const capLeft = activeTruck().capacityKg - g.cargo.totalKg - other.kg;
     const cashLeft = g.cash - other.cost;
     const byCash = cashLeft / VEGETABLES[row.veg].farmPricePerKg;
     const step = ECONOMY.buyStepKg;
@@ -141,8 +142,8 @@ export class BuyPanel {
     setText(e.farmTotal, formatTaka(p.cost));
     setText(e.spent, formatTaka(purchased + p.cost));
     setText(e.cashLeft, formatTaka(cashLeft));
-    setText(e.load, `ট্রাকের লোড: ${formatKg(loadKg)} / ${formatBn(ECONOMY.truckCapacityKg)}`);
-    e.loadFill.style.width = `${(loadKg / ECONOMY.truckCapacityKg) * 100}%`;
+    setText(e.load, `ট্রাকের লোড: ${formatKg(loadKg)} / ${formatBn(activeTruck().capacityKg)}`);
+    e.loadFill.style.width = `${(loadKg / activeTruck().capacityKg) * 100}%`;
     const road = g.estimatedRoadCost();
     e.road.innerHTML = rich(`{road} রাস্তার আনুমানিক খরচ: টোল ${formatTaka(road.legal)} + চাঁদা ${formatTaka(road.chanda)}`) +
       (cashLeft < road.legal + road.chanda ? ` <span class="warn-text">— নগদ কম পড়লে মাল দিয়ে দিতে হবে!</span>` : '');

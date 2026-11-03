@@ -2,7 +2,8 @@
 // Shared by the game (to show the points) and the API worker (which recomputes them, never trusting the client).
 
 import { ECONOMY } from '../config/economy';
-import { TRUCK, WORLD } from '../config/tuning';
+import { MAX_CAPACITY_KG, MAX_TRUCK_KMH } from '../config/trucks';
+import { WORLD } from '../config/tuning';
 import { VEG_LIST } from '../config/vegetables';
 
 export const SCORE = {
@@ -18,9 +19,9 @@ export const SCORE = {
 /** Real metres per second for a speedometer reading (the world runs faster than the speedometer). */
 const worldMs = (kmh: number) => (kmh * WORLD.speedScale) / 3.6;
 
-/** No arrival can be quicker than flat out at top speed the whole way (+10% slack). */
+/** No arrival can be quicker than flat out at the fastest truck's top speed the whole way (+10% slack). */
 export function minDriveTime(distance: number): number {
-  return distance / (worldMs(TRUCK.maxSpeedKmh) * 1.1);
+  return distance / (worldMs(MAX_TRUCK_KMH) * 1.1);
 }
 
 export interface ScoreInput {
@@ -41,7 +42,7 @@ export interface Score {
   speedFactor: number;
 }
 
-/** Highest profit any run can make: every taka (or kg of room) on the vegetable with the best margin. */
+/** Highest profit any run can make: every taka (or kg of room in the biggest truck) on the vegetable with the best margin. */
 export function maxProfit(): number {
   let bestPerKg = 0;
   let bestPerTaka = 0;
@@ -49,7 +50,7 @@ export function maxProfit(): number {
     bestPerKg = Math.max(bestPerKg, v.karwanBazarPricePerKg - v.farmPricePerKg);
     bestPerTaka = Math.max(bestPerTaka, (v.karwanBazarPricePerKg - v.farmPricePerKg) / v.farmPricePerKg);
   }
-  return Math.min(ECONOMY.truckCapacityKg * bestPerKg, ECONOMY.startingCash * bestPerTaka);
+  return Math.min(MAX_CAPACITY_KG * bestPerKg, ECONOMY.startingCash * bestPerTaka);
 }
 
 /** No delivery or no profit = 0 points. Otherwise profit/100, ×0.5–2 by how fast the highway was driven. */

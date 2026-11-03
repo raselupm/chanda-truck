@@ -28,6 +28,7 @@ export const LOOP = {
   maxDt: 1 / 20,
 } as const;
 
+/** Physics of the truck being driven. selectTruck() (trucks.ts) overwrites some of these for the chosen truck. */
 export const TRUCK = {
   length: 8,
   width: 2.5,
@@ -53,7 +54,7 @@ export const TRUCK = {
   maxHeadingOffset: 0.85,
   steerRise: 2.2,
   steerReturn: 3.8,
-} as const;
+};
 
 export const ROAD = {
   chunkLength: 40,

@@ -55,6 +55,25 @@ There is no driving assist: the truck keeps its heading, so you steer through ev
 The highway is curvy between events (`ROAD.bend*` in `tuning.ts`, minimum radius `bendMinRadius`)
 and straight only around tolls, barriers, crossings, bridges and the city.
 
+## Trucks
+
+Pick one of three vehicles on the title menu (`src/config/trucks.ts`). They're the most common goods vehicles on
+Bangladeshi highways, where Tata and Ashok Leyland chassis dominate. Each card shows a rendered photo of the truck, and
+the choice is remembered in `localStorage`.
+
+| | খোলা ট্রাক | কাভার্ড ভ্যান | পিকআপ |
+| --- | --- | --- | --- |
+| Real-world type | Tata SE 1613 / Ashok Leyland 1616 with a locally built wooden body | 12-tonne cab-over (Tata LPT 1212 class) with a steel box | One-tonne single cab (Mahindra Bolero / Tata Yodha class) |
+| Model | Yellow cab with a short nose, wooden crown (মুকুট) over the cab, full truck art, tassels | White cab, black grille, corrugated blue box, painted lettering, rear doors with locking bars | Vertical-slat grille, white body with a stripe, low steel bed, tube rack |
+| Capacity | 5,000 kg | 4,000 kg | 1,800 kg |
+| Top speed | 120 km/h | 115 km/h | 120 km/h, quicker off the line and more nimble |
+| Chanda / tolls | full / full | full / 85% | 50% / 40% |
+| Special | — | Locked: jam thieves can't steal | Shorter and narrower |
+
+`selectTruck()` copies the chosen truck's `physics` over `TRUCK` in `tuning.ts`, so collisions, mud and the
+hill-road sign speeds follow it. The worker scores every run against the biggest capacity and the fastest top
+speed (`MAX_CAPACITY_KG`, `MAX_TRUCK_KMH`), so the leaderboard rules are the same for all three.
+
 ## Tuning prices and gameplay
 
 All numbers live in `src/config/`:
@@ -62,7 +81,7 @@ All numbers live in `src/config/`:
 - **`vegetables.ts`**: per vegetable: `farmPricePerKg`, `karwanBazarPricePerKg` (both **placeholders**),
   `crateKg` (only affects how many crates are drawn), and colour.
 - **`economy.ts`**:
-  - `startingCash`, `truckCapacityKg`, `buyStepKg`
+  - `startingCash`, `buyStepKg` (each truck's capacity is in `trucks.ts`)
   - `chandaPerBarrier[]`: escalating chanda for barrier #1, #2, …
   - `penaltyMultiplierSlowHit` (1.5×) and `caughtMultiplier` (2×). The base amount is booked as CHANDA,
     the extra as PENALTY.

@@ -2,7 +2,6 @@
 
 export const ECONOMY = {
   startingCash: 150_000,
-  truckCapacityKg: 5_000,
   /** BuyPanel stepper increment */
   buyStepKg: 50,
 

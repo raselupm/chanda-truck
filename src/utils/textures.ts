@@ -216,6 +216,61 @@ export function truckArtTexture(kind: 'side' | 'back' | 'front'): THREE.CanvasTe
   });
 }
 
+/**
+ * Side of a covered van's steel box: painted transport-company lettering over the corrugated panels, a phone
+ * number and a flower border, as Dhaka paint shops letter them. Transparent between the letters so the panel
+ * colour and ribs show through.
+ */
+export function coveredVanSideTexture(): THREE.CanvasTexture {
+  return canvasTexture(1024, 448, (ctx, w, h) => {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // white band along the top and bottom edge
+    ctx.fillStyle = '#f4f1e8';
+    ctx.fillRect(0, 0, w, 34);
+    ctx.fillRect(0, h - 34, w, 34);
+    ctx.fillStyle = '#c1121f';
+    ctx.fillRect(0, 34, w, 8);
+    ctx.fillRect(0, h - 42, w, 8);
+    for (let i = 0; i < 12; i++) flower(ctx, 44 + i * 85, 17, 12, i % 2 ? '#e63946' : '#ffd166', '#1d3557');
+    ctx.lineJoin = 'round';
+    ctx.font = `700 96px ${FONT_BN}`;
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = '#7a0c14';
+    ctx.strokeText('মায়ের দোয়া', w / 2, 140);
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText('মায়ের দোয়া', w / 2, 140);
+    ctx.font = `700 64px ${FONT_BN}`;
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = '#0b2545';
+    ctx.strokeText('কাভার্ড ভ্যান সার্ভিস', w / 2, 248);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('কাভার্ড ভ্যান সার্ভিস', w / 2, 248);
+    ctx.font = `600 38px ${FONT_BN}`;
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText(`ঢাকা · চট্টগ্রাম · সারা বাংলাদেশ  ☎ ${toBnDigits('01700-000000')}`, w / 2, 338);
+  });
+}
+
+/** Tailgate of a pickup: white steel with a painted slogan, the way they leave the body shop. */
+export function pickupTailgateTexture(): THREE.CanvasTexture {
+  return canvasTexture(512, 144, (ctx, w, h) => {
+    ctx.fillStyle = '#eceae4';
+    ctx.fillRect(0, 0, w, h);
+    zigzag(ctx, h - 14, w, 14, '#e63946', '#1d3557');
+    flower(ctx, 38, 62, 20, '#e63946', '#ffd166');
+    flower(ctx, w - 38, 62, 20, '#e63946', '#ffd166');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#c1121f';
+    ctx.font = `700 54px ${FONT_BN}`;
+    ctx.fillText('মায়ের দোয়া', w / 2, 48);
+    ctx.fillStyle = '#1d3557';
+    ctx.font = `600 28px ${FONT_BN}`;
+    ctx.fillText('হর্ন দিন · সাবধানে চালান', w / 2, 102);
+  });
+}
+
 export function groundTexture(): THREE.CanvasTexture {
   const t = canvasTexture(256, 256, (ctx, w, h) => {
     ctx.fillStyle = '#7b9a3c';

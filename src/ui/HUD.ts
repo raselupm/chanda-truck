@@ -2,6 +2,7 @@
 
 import { ECONOMY } from '../config/economy';
 import type { RouteDef } from '../config/route';
+import { activeTruck } from '../config/trucks';
 import { BROKEN_ROAD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { formatBn, formatDistance, formatKg, formatTaka, formatTakaPerKg, toBnDigits } from '../utils/bnNumber';
@@ -171,7 +172,7 @@ export class HUD {
     const phase = g.state.phase;
 
     setText(this.cash, formatTaka(g.cash));
-    setText(this.kg, `${formatKg(g.cargo.totalKg)} / ${formatBn(ECONOMY.truckCapacityKg)}`);
+    setText(this.kg, `${formatKg(g.cargo.totalKg)} / ${formatBn(activeTruck().capacityKg)}`);
     const kgNow = g.cargo.totalKg;
     const perKg = kgNow > 0 ? g.ledger.cashSpent() / kgNow : 0;
     setText(this.perKg, kgNow > 0 ? formatTakaPerKg(perKg) : '—');

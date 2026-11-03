@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
 import type { TollEvent } from '../config/route';
+import { feeFor } from '../config/trucks';
 import { EVENTS, ROAD, TOLL_JAM } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { box, buildColored, cached, vertexColorMaterial, type Part } from '../utils/geometry';
@@ -64,7 +65,7 @@ export class TollPlaza extends SetPiece<TollEvent> {
     const S = event.s;
     const hw = track.halfWidth(S);
     const small = event.type === 'roadTax' || !!event.small;
-    this.fee = ECONOMY.fees[event.feeKey];
+    this.fee = feeFor(event.feeKey);
     const mat = vertexColorMaterial();
 
     // Funnel the truck into the toll lane on our side

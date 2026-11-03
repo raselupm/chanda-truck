@@ -2,6 +2,7 @@
 
 import { ECONOMY } from '../config/economy';
 import { DEFAULT_START_ID, START_POINTS } from '../config/route';
+import { DEFAULT_TRUCK, isTruckId, topSpeedKmh, TRUCK_LIST, type TruckId } from '../config/trucks';
 import type { Sound } from '../audio/Sound';
 import { track } from '../net/analytics';
 import { player } from '../net/leaderboard';
@@ -10,16 +11,36 @@ import { isTouchDevice } from '../utils/device';
 import { button, el, esc, setText } from './dom';
 import { loadBoard, NameDialog } from './Leaderboard';
 
+const TRUCK_KEY = 'sobjir-truck.truck';
+
+function storedTruck(): TruckId {
+  try {
+    const id = localStorage.getItem(TRUCK_KEY);
+    return isTruckId(id) ? id : DEFAULT_TRUCK;
+  } catch {
+    return DEFAULT_TRUCK;
+  }
+}
+
+export interface MenuHandlers {
+  onStart: (startId: string, truck: TruckId) => void;
+  /** a truck was picked: the idle truck behind the menu changes */
+  onTruck: (truck: TruckId) => void;
+  /** a photo of the truck (data URL) for its card */
+  thumbnail: (truck: TruckId) => string;
+}
+
 export class Menu {
   private root: HTMLElement;
   private startId = DEFAULT_START_ID;
+  private truckId = storedTruck();
   private playerLine: HTMLElement;
   private board: HTMLElement;
   /** heading + note + table, hidden while the leaderboard can't be loaded */
   private boardWrap: HTMLElement;
   private nameDialog: NameDialog;
 
-  constructor(parent: HTMLElement, sound: Sound, onStart: (startId: string) => void) {
+  constructor(parent: HTMLElement, sound: Sound, handlers: MenuHandlers) {
     this.root = el('div', 'menu', '', parent);
     const card = el('div', 'menu-card', '', this.root);
     el('div', 'menu-title', '{truck} সবজির ট্রাক', card);
@@ -27,7 +48,7 @@ export class Menu {
 
     el('h3', '', 'কীভাবে খেলবেন', card);
     el('ul', 'howto', `
-      <li>{farm} গ্রামের ক্ষেতের পাশের সবুজ জায়গায় থেমে সবজি কিনুন। নগদ ${formatTaka(ECONOMY.startingCash)}, ট্রাকে জায়গা ${formatKg(ECONOMY.truckCapacityKg)}।</li>
+      <li>{farm} গ্রামের ক্ষেতের পাশের সবুজ জায়গায় থেমে সবজি কিনুন। নগদ ${formatTaka(ECONOMY.startingCash)}; কত কেজি ধরবে তা গাড়ির ওপর নির্ভর করে।</li>
       <li>{truck} রওনা দিন ঢাকার কাওরান বাজারের দিকে।</li>
       <li>{hand} চাঁদার ব্যারিকেড: থেমে চাঁদা দিন — অথবা ${formatBn(ECONOMY.ramSpeedKmh)}+ কিমি/ঘণ্টায় ভেঙে বেরিয়ে যান। আস্তে ধাক্কা দিলে জরিমানা!</li>
       <li>{bike} ভাঙলে ধাওয়া শুরু: টানা ${formatBn(ECONOMY.chaseRequiredSeconds)} সেকেন্ড ${formatBn(ECONOMY.ramSpeedKmh)}+ গতিতে থাকলে পালাতে পারবেন। গতি কমালে মিটার শূন্য!</li>
@@ -36,6 +57,33 @@ export class Menu {
       <li>{train} রেলক্রসিংয়ে গেট বন্ধ থাকলে থামুন — ট্রেন চলে গেলে গেট খুলবে। আঁকাবাঁকা রাস্তায় নিজেই স্টিয়ারিং ধরুন!</li>
       <li>{horn} হর্ন দিলে সামনের গাড়ি সাইড দেয়। {rain} আবহাওয়া আর দিন-রাত ধীরে ধীরে বদলায় — বৃষ্টিতে ব্রেক কম ধরে।</li>
       <li>{clipboard} শেষে হিসাব দেখুন: ক্ষেতের দাম কীভাবে কাওরান বাজারের দাম হলো।</li>`, card);
+
+    el('h3', '', 'কোন গাড়ি চালাবেন?', card);
+    const trucks = el('div', 'trucks', '', card);
+    const truckChips: HTMLButtonElement[] = [];
+    handlers.onTruck(this.truckId);
+    for (const t of TRUCK_LIST) {
+      const chip = button(
+        `<img alt="" src="${handlers.thumbnail(t.id)}"><b>${esc(t.nameBn)}</b><small>${esc(t.aboutBn)}</small>` +
+          `<span class="truck-stats"><span>{box} ${formatKg(t.capacityKg)}</span><span>সর্বোচ্চ ${formatBn(topSpeedKmh(t))} কিমি/ঘণ্টা</span></span>` +
+          `<small class="truck-pros">${esc(t.prosBn)}</small>`,
+        'truck-chip',
+        () => {
+          this.truckId = t.id;
+          try {
+            localStorage.setItem(TRUCK_KEY, t.id);
+          } catch {
+            /* private mode: remembered for this visit only */
+          }
+          track('truck_select', { truck: t.id });
+          handlers.onTruck(t.id);
+          truckChips.forEach((c) => c.classList.toggle('on', c === chip));
+        },
+        trucks,
+      );
+      chip.classList.toggle('on', t.id === this.truckId);
+      truckChips.push(chip);
+    }
 
     el('h3', '', 'কোথা থেকে রওনা দেবেন?', card);
     const routes = el('div', 'routes', '', card);
@@ -60,7 +108,7 @@ export class Menu {
     // A name is needed for the leaderboard: ask for it the first time
     button('খেলা শুরু {right}', 'btn btn-go big', async () => {
       if (!player.name && !(await this.askName())) return;
-      onStart(this.startId);
+      handlers.onStart(this.startId, this.truckId);
     }, actions);
     const mute = button(sound.muted ? '{mute} শব্দ বন্ধ' : '{sound} শব্দ চালু', 'btn btn-ghost', () => sound.toggleMute(), actions);
     sound.onMuteChange((m) => setText(mute, m ? '{mute} শব্দ বন্ধ' : '{sound} শব্দ চালু'));

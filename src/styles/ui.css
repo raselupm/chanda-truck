@@ -269,6 +269,17 @@
 }
 .route-chip small { display: block; opacity: .75; font-size: 12px; }
 .route-chip.on { border-color: var(--accent); background: rgba(242,160,61,.18); }
+.trucks { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.truck-chip {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; font-family: var(--font-bn); color: var(--fg);
+  background: rgba(255,255,255,.07); border: 2px solid rgba(255,255,255,.18); border-radius: 12px; padding: 6px 6px 8px; cursor: pointer;
+}
+.truck-chip img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; margin-bottom: 4px; background: #a9cbe6; }
+.truck-chip b, .truck-chip small, .truck-stats { padding: 0 4px; }
+.truck-chip small { display: block; opacity: .75; font-size: 12px; }
+.truck-stats { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; font-weight: 600; color: var(--accent); }
+.truck-chip .truck-pros { opacity: .9; }
+.truck-chip.on { border-color: var(--accent); background: rgba(242,160,61,.18); }
 .menu-actions { display: flex; gap: 10px; align-items: center; margin: 16px 0 8px; flex-wrap: wrap; }
 .controls-legend { font-size: 13px; opacity: .8; }
 .disclaimer { font-size: 12px; opacity: .6; margin-top: 10px; }

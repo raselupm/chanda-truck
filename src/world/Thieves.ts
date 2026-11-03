@@ -2,6 +2,7 @@
 // the roadside, grab a sack off the back and run away. A horn blast scares them off.
 
 import * as THREE from 'three';
+import { activeTruck } from '../config/trucks';
 import { THIEVES, ROAD, TRUCK } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { box, buildColored, cached, vertexColorMaterial } from '../utils/geometry';
@@ -97,13 +98,15 @@ export class Thieves {
     const crawling = Math.abs(tr.kmh) < THIEVES.maxKmh;
     const zone = g.state.phase === 'HIGHWAY' ? this.zones.find((z) => tr.frontS >= z.from && tr.frontS <= z.to) ?? null : null;
 
-    if (zone && !zone.warned && crawling && g.cargo.totalKg > 0) {
+    // a covered van's doors are locked: nothing to grab
+    const exposed = g.cargo.totalKg > 0 && !activeTruck().theftProof;
+    if (zone && !zone.warned && crawling && exposed) {
       zone.warned = true;
       g.hud.toast('{warning} জ্যামে চোরের উপদ্রব! কেউ সবজি টানলে হর্ন দিন', 3.5);
     }
 
     this.timer -= dt;
-    if (zone && crawling && !g.modal && g.cargo.totalKg > 0 && this.timer <= 0) {
+    if (zone && crawling && !g.modal && exposed && this.timer <= 0) {
       this.timer = THIEVES.intervalMin + Math.random() * (THIEVES.intervalMax - THIEVES.intervalMin);
       const busy = this.pool.filter((th) => th.active && th.state !== 'flee').length;
       const th = this.pool.find((p) => !p.active);

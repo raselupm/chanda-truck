@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
 import type { BarrierEvent } from '../config/route';
+import { chandaFor } from '../config/trucks';
 import { EVENTS, ROAD, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import type { ChargeLine } from '../game/Payment';
@@ -64,7 +65,7 @@ export class Barrier extends SetPiece<BarrierEvent> {
     const S = event.s;
     const hw = track.halfWidth(S);
     const span = hw + 3.5;
-    this.base = event.chanda;
+    this.base = chandaFor(event.chanda);
 
     track.limits.push({ from: S - 45, to: S + 8, range: () => [-hw - 1.5, hw + 1.5] });
     track.propBlocks.push({ from: S - 25, to: S + 25, dMin: -span - 8, dMax: span + 8 });
