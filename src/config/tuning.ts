@@ -318,10 +318,10 @@ export const SLOW_ZONES = {
  * road edge and the site.
  */
 export const VILLAGE = {
-  gorurHat: { count: 1, length: 120, depth: 58, gap: 5 },
-  wazMahfil: { count: 1, length: 96, depth: 52, gap: 6 },
-  football: { count: 2, length: 84, depth: 50, gap: 7 },
-  cricket: { count: 2, length: 90, depth: 62, gap: 7 },
+  gorurHat: { count: 1, length: 120, depth: 58, gap: 3 },
+  wazMahfil: { count: 1, length: 96, depth: 52, gap: 4 },
+  football: { count: 2, length: 84, depth: 38, gap: 3 },
+  cricket: { count: 2, length: 90, depth: 46, gap: 3 },
   /** within this many metres the sights play their sounds */
   hearing: 260,
 } as const;
@@ -495,4 +495,20 @@ export const MUD = {
   stainSpacing: 0.9,
   /** decals kept in the world (oldest are reused) */
   maxStains: 360,
+} as const;
+
+/** Real roadside landmarks (config/landmarks.ts, world/Landmarks.ts). */
+export const LANDMARK = {
+  /** metres between the road edge and the site (plus each landmark's setback) */
+  gap: 5,
+  /** wanted spacing between landmarks along the road (shrinks when a route is short) */
+  spacing: 320,
+  /** clear ground kept round each site, metres along the road */
+  margin: 12,
+  /** metres of road kept per metre of landmark between two stops (the rest is barriers, bazaars, schools…) */
+  room: 2.6,
+  /** how far either way from its spot a landmark may move to find free ground */
+  search: 700,
+  /** shown from this far ahead of the truck */
+  visibleAhead: 1_400,
 } as const;

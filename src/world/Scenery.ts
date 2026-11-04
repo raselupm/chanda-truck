@@ -86,6 +86,8 @@ export class Scenery {
     if (t.isBlocked(s, d)) return;
     // fields, ponds and buildings are big: keep the whole thing (ends and middle) off the village shortcuts
     if ((kind === 'paddy' || kind === 'pond' || kind === 'building') && [-0.5, 0, 0.5].some((k) => t.nearShortcut(s + k * sz, d, sx / 2 + 2))) return;
+    // ...and off the blocked ground (school yards, cattle markets, playing fields): test the corners and edges
+    if ((kind === 'paddy' || kind === 'pond' || kind === 'building' || kind === 'mound') && [-0.5, 0, 0.5].some((a) => [-0.5, 0, 0.5].some((b) => t.isBlocked(s + a * sz, d + b * sx)))) return;
     const y = ground ?? (t.isRiver(s, 0) ? -100 : 0);
     this.tmpE.set(0, rotY, 0);
     this.tmpQ.setFromEuler(this.tmpE);

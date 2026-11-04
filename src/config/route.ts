@@ -3,7 +3,8 @@
 // Distances (s, metres along the track) are compressed for gameplay.
 
 import { ECONOMY, type FeeKey } from './economy';
-import { BROKEN_ROAD, CITY, RAIL, ROADWORKS, SHORTCUT, SLOW_ZONES, VILLAGE } from './tuning';
+import { BROKEN_ROAD, CITY, LANDMARK, RAIL, ROADWORKS, SHORTCUT, SLOW_ZONES, VILLAGE } from './tuning';
+import { isStop, LANDMARK_SIZE, LANDMARKS, type LandmarkDef } from './landmarks';
 import type { VegId } from './vegetables';
 import { toBnDigits } from '../utils/bnNumber';
 import { mulberry32, range, type Rng } from '../utils/rng';
@@ -91,6 +92,16 @@ export interface Sight {
   side: -1 | 1;
 }
 
+/** A real landmark beside the road (config/landmarks.ts). */
+export interface PlacedLandmark {
+  def: LandmarkDef;
+  /** middle of the site along the road */
+  s: number;
+  side: -1 | 1;
+  /** [length along the road, depth] */
+  size: [number, number];
+}
+
 /**
  * A village road round a chanda barrier: forks off to the left at `from` and rejoins from the left at `to`.
  * A right-side one passes under the highway (which goes over it on a flyover) at each of `crossings`:
@@ -126,6 +137,8 @@ export interface RouteDef {
   shortcuts: ShortcutDef[];
   /** cattle market, waz mahfil, football and cricket fields beside the road */
   sights: Sight[];
+  /** real landmarks beside the road, in road order */
+  landmarks: PlacedLandmark[];
   events: RouteEvent[];
   /** total track length (a little beyond the market) */
   length: number;
@@ -426,6 +439,115 @@ function chandaAmount(rng: Rng, i: number, n: number): number {
   return Math.round(v / step) * step;
 }
 
+/** Ground that's already built on beside the road: side 0 = both sides, -1 / 1 = only that side. */
+type Blocked = { from: number; to: number; side: -1 | 0 | 1 };
+
+/**
+ * Spread a start point's landmarks along [lo, hi] in their real order. The { stop } markers tie them to the
+ * legal stops: the ones listed before a bridge stand before its toll, the ones after it beyond the far bank.
+ * Each landmark then takes free ground near its spot, on whichever side has room (its own side if known).
+ * The placed sites are added to `taken`.
+ */
+function placeLandmarks(startId: string, events: RouteEvent[], blocked: Blocked[], taken: [number, number][], lo: number, hi: number, rng: Rng): PlacedLandmark[] {
+  const list = LANDMARKS[startId] ?? [];
+  // segments between the stops: [from, to] and the landmarks in each
+  const segs: { from: number; to: number; defs: LandmarkDef[] }[] = [{ from: lo, to: hi, defs: [] }];
+  for (const e of list) {
+    const cur = segs[segs.length - 1];
+    if (!isStop(e)) {
+      cur.defs.push(e);
+      continue;
+    }
+    const ev = events.find((x) => x.id === e.stop);
+    if (!ev) continue;
+    const br = (ev.type === 'roadTax' || ev.type === 'roadToll' || ev.type === 'bridgeToll') && ev.bridge ? ev.bridge : null;
+    cur.to = ev.s - 200;
+    segs.push({ from: br ? ev.s + br.offset * 2 + br.length + 140 : ev.s + 250, to: hi, defs: [] });
+  }
+  // the free ground on each side: [lo, hi] minus everything already built there
+  const free = (k: -1 | 1): [number, number][] => {
+    const out: [number, number][] = [];
+    let at = lo;
+    for (const { from, to } of blocked.filter((x) => x.side !== -k).sort((p, q) => p.from - q.from)) {
+      if (from > at) out.push([at, Math.min(from, hi)]);
+      at = Math.max(at, to);
+      if (at >= hi) break;
+    }
+    if (at < hi) out.push([at, hi]);
+    return out;
+  };
+  const sides = { [-1]: free(-1), [1]: free(1) } as Record<-1 | 1, [number, number][]>;
+  const placed: PlacedLandmark[] = [];
+  for (const seg of segs) placed.push(...packLandmarks(seg.defs, seg.from, seg.to, sides, rng));
+  for (const p of placed) taken.push([p.s - p.size[0] / 2 - LANDMARK.margin, p.s + p.size[0] / 2 + LANDMARK.margin]);
+  return placed.sort((a, b) => a.s - b.s);
+}
+
+/** Metres of road the landmarks before each stop (and after the last one) need, by stop id. */
+function landmarkRoom(startId: string): { before: Record<string, number>; tail: number } {
+  const before: Record<string, number> = {};
+  let need = 0;
+  for (const e of LANDMARKS[startId] ?? []) {
+    if (isStop(e)) {
+      before[e.stop] = need;
+      need = 0;
+    } else {
+      need += ((e.size ?? LANDMARK_SIZE[e.kind])[0] + 2 * LANDMARK.margin) * LANDMARK.room;
+    }
+  }
+  return { before, tail: need };
+}
+
+/**
+ * Fit one stretch's landmarks into the free ground of [from, to], in order along the road: spread evenly (a
+ * pinned one hugs the start), each as close to its spot as it fits on either side; the ones that run off the
+ * end are pulled back from it. Whatever still doesn't fit is left out.
+ */
+function packLandmarks(defs: LandmarkDef[], from: number, to: number, allFree: Record<-1 | 1, [number, number][]>, rng: Rng): PlacedLandmark[] {
+  const clip = (list: [number, number][]) => list.map(([a, b]) => [Math.max(a, from), Math.min(b, to)] as [number, number]).filter(([a, b]) => b > a);
+  const free = { [-1]: clip(allFree[-1]), [1]: clip(allFree[1]) } as Record<-1 | 1, [number, number][]>;
+  const len = defs.map((def) => (def.size ?? LANDMARK_SIZE[def.kind])[0] + 2 * LANDMARK.margin);
+  // the sides each may take, the preferred one first
+  const options = defs.map((def): (-1 | 1)[] => (def.side ? [def.side] : rng() < 0.5 ? [-1, 1] : [1, -1]));
+  const fits = (s: number, i: number, k: -1 | 1) => free[k].some(([a, b]) => s >= a && s + len[i] <= b);
+  const start: number[] = [];
+  const side: (-1 | 1)[] = [];
+  defs.forEach((def, i) => {
+    const spot = def.pin && i === 0 ? from : from + ((i + 0.5) / defs.length) * (to - from) - len[i] / 2;
+    const min = Math.max(spot, i ? start[i - 1] + len[i - 1] : from);
+    let best = Infinity;
+    let bestSide = options[i][0];
+    for (const k of options[i]) {
+      const iv = free[k].find(([a, b]) => b - Math.max(a, min) >= len[i]);
+      const s = iv ? Math.max(iv[0], min) : Infinity;
+      if (s < best - 1) [best, bestSide] = [s, k];
+    }
+    start.push(best);
+    side.push(bestSide);
+  });
+  // (one that fits nowhere is dropped and doesn't hold back the ones before it)
+  let limit = to;
+  for (let i = defs.length - 1; i >= 0; i--) {
+    const max = limit - len[i];
+    if (!(start[i] <= max && fits(start[i], i, side[i]))) {
+      start[i] = -Infinity;
+      for (const k of options[i]) {
+        const iv = [...free[k]].reverse().find(([a, b]) => Math.min(b - len[i], max) >= a);
+        const s = iv ? Math.min(iv[1] - len[i], max) : -Infinity;
+        if (s > start[i] + 1) [start[i], side[i]] = [s, k];
+      }
+    }
+    if (start[i] >= from) limit = start[i];
+  }
+  const placed: PlacedLandmark[] = [];
+  defs.forEach((def, i) => {
+    const prev = placed[placed.length - 1];
+    if (!(start[i] >= from) || (prev && start[i] < prev.s + prev.size[0] / 2 + LANDMARK.margin)) return;
+    placed.push({ def, s: start[i] + len[i] / 2, side: side[i], size: def.size ?? LANDMARK_SIZE[def.kind] });
+  });
+  return placed;
+}
+
 /** Build a fresh route for a start point; barriers are placed randomly between the legal stops. */
 export function generateRoute(startId: string, seed = Math.floor(Math.random() * 1e9)): RouteDef {
   const sp = START_POINTS.find((p) => p.id === startId) ?? START_POINTS[0];
@@ -465,6 +587,13 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   // The hill road starts where the village road meets the highway; the events begin after it
   const hills = sp.hill ? { from: LAYOUT.highwayStart + 150, to: LAYOUT.highwayStart + 150 + sp.hill, seed: Math.floor(rng() * 1e9) } : null;
   let s = hills ? hills.to + 600 : LAYOUT.firstEvent;
+  // the landmarks between the stops need their share of the road
+  const room = landmarkRoom(sp.id);
+  let roomFrom = hills ? hills.to + 100 : LAYOUT.highwayStart + 400;
+  // road since `from` already built up on both sides: bazaars and the shortcuts' flyovers
+  const usedSince = (from: number) =>
+    townZones.filter(([a]) => a >= from).length * 620 +
+    shortcuts.filter((sc) => sc.from >= from).reduce((n, sc) => n + sc.crossings.length * 2 * (SHORTCUT.deckFlat + SHORTCUT.ramp + 40), 0);
   let b = 0;
   let r = 0;
   let w = 0;
@@ -516,11 +645,15 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
       // room for the railway beside the bridge's approaches (nothing else may stand on it)
       const rail = item.bridge?.rail ?? 0;
       s += Math.max(0, rail - (item.bridge?.offset ?? 0));
+      // and for the landmarks that stand before this stop
+      s = Math.max(s, roomFrom + (room.before[item.id] ?? 0) + usedSince(roomFrom) + 200 + rail);
       events.push({ ...item, s });
       if (item.bridge) s += item.bridge.offset + item.bridge.length + rail + range(rng, ...LAYOUT.afterBridge);
       else s += range(rng, ...LAYOUT.afterToll);
+      roomFrom = item.bridge ? s - range(rng, ...LAYOUT.afterBridge) + item.bridge.offset + 140 : s;
     }
   });
+  s = Math.max(s, roomFrom + room.tail + usedSince(roomFrom) + 250);
   s = Math.round(s);
   const cityStartS = s - 300;
   const marketS = s + LAYOUT.cityStretch;
@@ -581,6 +714,37 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     const rail = br?.rail ?? 0;
     taken.push([e.s - 160 - rail, br ? e.s + br.offset + br.length + rail + br.offset + 120 : e.s + 120]);
   }
+  // The landmarks look at each side of the road on its own: a village shortcut that stays on its side, a school,
+  // or the railway beside a bridge (always on the left) leaves the other side free.
+  const both = (from: number, to: number): Blocked => ({ from, to, side: 0 });
+  const blocked: Blocked[] = [
+    both(0, LAYOUT.highwayStart + 300), both(cityStartS - 300, marketS + 400),
+    ...townZones.map(([a, b2]) => both(a - 60, b2 + 60)),
+    ...shortcuts.flatMap((sc): Blocked[] => {
+      if (!sc.crossings.length) return [{ from: sc.from - 80, to: sc.to + 80, side: sc.side }];
+      // forks off on the left, passes under the highway's flyovers to the right side and back
+      const [c1, c2] = sc.crossings;
+      const r = SHORTCUT.deckFlat + SHORTCUT.ramp + 40;
+      return [
+        { from: sc.from - 80, to: c1, side: -1 }, { from: c1, to: c2, side: 1 }, { from: c2, to: sc.to + 80, side: -1 },
+        both(c1 - r, c1 + r), both(c2 - r, c2 + r),
+      ];
+    }),
+    ...slowZones.filter((z) => z.kind === 'school').map((z): Blocked => ({ from: z.from - 60, to: z.to + 60, side: z.side })),
+    ...(hills ? [both(hills.from - 100, hills.to + 100)] : []),
+  ];
+  for (const e of events) {
+    if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
+    const br = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.bridge : null;
+    if (!br) {
+      blocked.push(both(e.s - 160, e.s + 120));
+      continue;
+    }
+    const end = e.s + br.offset + br.length + br.offset + 120;
+    blocked.push(both(e.s - 160, end));
+    if (br.rail) blocked.push({ from: e.s - 160 - br.rail, to: e.s - 160, side: -1 }, { from: end, to: end + br.rail, side: -1 });
+  }
+  const landmarks = placeLandmarks(sp.id, events, blocked, taken, LAYOUT.highwayStart + 400, cityStartS - 250, rng);
   const sights: Sight[] = [];
   const order: SightKind[] = ['gorurHat', 'wazMahfil', 'cricket', 'football'];
   for (const round of [0, 1]) {
@@ -614,6 +778,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
     wide,
     shortcuts,
     sights,
+    landmarks,
     hills,
     events,
     length: marketS + 300,

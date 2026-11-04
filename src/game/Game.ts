@@ -35,6 +35,7 @@ import { Environment } from '../world/Environment';
 import { Aircraft } from '../world/Aircraft';
 import { Exhaust } from '../world/Exhaust';
 import { VillageSights } from '../world/VillageSights';
+import { Landmarks } from '../world/Landmarks';
 import { Pedestrians } from '../world/Pedestrians';
 import { RailCrossing } from '../world/RailCrossing';
 import { SlowZones } from '../world/SlowZones';
@@ -92,6 +93,7 @@ export class Game {
   readonly exhaust = new Exhaust();
   readonly aircraft = new Aircraft(this);
   readonly village = new VillageSights(this);
+  readonly landmarks = new Landmarks(this);
   /** seconds of heavy smoke left from the engine starting */
   private smokeKick = 0;
   /** fell off the hill road: which side, and for how long (the truck tumbles into the valley) */
@@ -144,7 +146,7 @@ export class Game {
     this.mud = new Mud(this);
     this.clutter = new CityClutter(this.track);
     this.shortcuts = new ShortcutRoads(this);
-    scene.add(this.shortcuts.group, this.hillRoad.group, this.exhaust.points, this.aircraft.group, this.village.group);
+    scene.add(this.shortcuts.group, this.hillRoad.group, this.exhaust.points, this.aircraft.group, this.village.group, this.landmarks.group);
     scene.add(this.pedestrians.group, this.slowZones.group, this.brokenRoads.group, this.thieves.group, this.mud.group, this.clutter.group, this.ads.group);
     scene.add(this.streamer.group, this.scenery.group, this.truckModel.root, this.traffic.group, this.chase.group, this.piecesGroup);
 
@@ -201,6 +203,7 @@ export class Game {
     this.hillRoad.build(this.track);
     this.slowZones.build(route.slowZones);
     this.village.build(route.sights);
+    this.landmarks.build(route.landmarks);
     this.brokenRoads.build(route.broken);
     this.thieves.reset();
 
@@ -776,7 +779,8 @@ export class Game {
     if (!this.state.paused) this.weather.update(dt);
     const look = this.weather.look;
     this.aircraft.update(dt, look.headlights, this.state.paused);
-    this.village.update(this.state.paused ? 0 : dt, look.headlights);
+    this.village.update(this.state.paused ? 0 : dt, look.headlights, look.stars);
+    this.landmarks.update(look.headlights);
     if (this.cam.mode === 'cockpit' && this.cockpit) {
       const throttle = this.state.paused || this.modal ? 0 : this.input.throttle;
       this.cockpit.update(this.state.paused ? 0 : dt, this.cam.camera, { kmh: t.kmh, steer: t.steer, throttle, look, flash: this.weather.flash });

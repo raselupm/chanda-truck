@@ -490,12 +490,12 @@ export class VillageSights {
     ];
     for (let team = 0 as 0 | 1; team < 2; team++) {
       const own = team === 0 ? -hz : hz;
-      const homes: [number, number][] = [[cx, own * 0.95], [cx - 12, own * 0.6], [cx + 12, own * 0.6], [cx, own * 0.45], [cx - 9, own * 0.15], [cx + 9, own * 0.15], [cx, -own * 0.1]];
+      const homes: [number, number][] = [[cx, own * 0.95], [cx - 10, own * 0.6], [cx + 10, own * 0.6], [cx, own * 0.45], [cx - 7, own * 0.15], [cx + 7, own * 0.15], [cx, -own * 0.1]];
       homes.forEach((home, i) => {
         const keeper = i === 0;
         const look = keeper ? { shirt: team ? 0xf28c28 : 0x2a2a2a, lower: 0x1d1d1d } : kits[team];
         const mesh = new THREE.Mesh(personGeometry({ ...look, skin: SKINS[(i + team) % 4] }), vertexColorMaterial());
-        mesh.scale.setScalar(0.82);
+        mesh.scale.setScalar(0.95);
         site.group.add(mesh);
         site.players.push(mesh);
         site.footballers.push({ mesh, team, home, x: home[0], z: home[1], keeper });
@@ -528,7 +528,7 @@ export class VillageSights {
 
     const mesh = (look: Look, i: number) => {
       const m = new THREE.Mesh(personGeometry({ ...look, skin: SKINS[i % 4] }), vertexColorMaterial());
-      m.scale.setScalar(0.85);
+      m.scale.setScalar(0.95);
       site.group.add(m);
       site.players.push(m);
       return m;
@@ -542,7 +542,7 @@ export class VillageSights {
     striker.add(bat);
     const nonStriker = mesh(batting, 3);
     const keeper = mesh(fielding, 4);
-    const fielders = [[-14, -18], [14, -16], [-20, 2], [20, 4], [-10, 20], [12, 22], [0, -30]].map(([dx, dz], i) => {
+    const fielders = [[-12, -18], [12, -16], [-17, 2], [17, 4], [-9, 20], [10, 22], [0, -30]].map(([dx, dz], i) => {
       const f = mesh(fielding, 5 + i);
       return { mesh: f, home: [cx + dx, dz] as [number, number] };
     });
@@ -568,7 +568,11 @@ export class VillageSights {
 
   // ---------------------------------------------------------------- update
 
-  update(dt: number, night: number): void {
+  /**
+   * night = how dim it is (the headlight level: dusk, rain and storms count) for the lights;
+   * stars = how dark the sky is (only real night has stars) for sending the players home.
+   */
+  update(dt: number, night: number, stars: number): void {
     this.t += dt;
     const g = this.game;
     const tr = g.truck;
@@ -578,8 +582,8 @@ export class VillageSights {
       const cfg = VILLAGE[site.sight.kind];
       const rel = s - tr.s;
       site.group.visible = rel > -cfg.length / 2 - 120 && rel < 700;
-      // the players go home at dusk; the mahfil lights up
-      const dark = night > 0.55;
+      // the players go home once it's properly night (rain doesn't stop a village match); the lights come on
+      const dark = stars > 0.5;
       for (const p of site.players) p.visible = !dark;
       // string lights only show once it gets dark
       if (site.lights) site.lights.opacity = Math.max(0, night - 0.1) * 1.1;
