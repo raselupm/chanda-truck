@@ -3,7 +3,7 @@
 // Distances (s, metres along the track) are compressed for gameplay.
 
 import { ECONOMY, type FeeKey } from './economy';
-import { BROKEN_ROAD, CITY, LANDMARK, RAIL, ROADWORKS, SHORTCUT, SLOW_ZONES, VILLAGE } from './tuning';
+import { BROKEN_ROAD, CITY, FERRY, LANDMARK, RAIL, ROADWORKS, SHORTCUT, SLOW_ZONES, VILLAGE } from './tuning';
 import { isStop, LANDMARK_SIZE, LANDMARKS, type LandmarkDef } from './landmarks';
 import type { VegId } from './vegetables';
 import { toBnDigits } from '../utils/bnNumber';
@@ -31,11 +31,12 @@ export interface BarrierEvent extends EventBase {
   workers: number;
 }
 
-export type BridgeStyle = 'jamuna' | 'padma' | 'lalon' | 'shahAmanat' | 'meghnaGumti' | 'girder' | 'bhairab' | 'payra' | 'meghna' | 'madhumati';
+/** 'ferry': no bridge at all, the river is crossed on a ferry from one ghat to the other (world/FerryGhat.ts) */
+export type BridgeStyle = 'jamuna' | 'padma' | 'lalon' | 'shahAmanat' | 'meghnaGumti' | 'girder' | 'bhairab' | 'payra' | 'meghna' | 'madhumati' | 'ferry';
 
 export interface TollEvent extends EventBase {
-  /** roadTax = ROAD_TAX ledger category; roadToll / bridgeToll = TOLL */
-  type: 'roadTax' | 'roadToll' | 'bridgeToll';
+  /** roadTax = ROAD_TAX ledger category; roadToll / bridgeToll / ferry = TOLL */
+  type: 'roadTax' | 'roadToll' | 'bridgeToll' | 'ferry';
   feeKey: FeeKey;
   /** single-booth plaza instead of the full canopy */
   small?: boolean;
@@ -47,7 +48,14 @@ export interface TollEvent extends EventBase {
     length: number;
     /** metres of railway beside the road before and after the bridge (kept clear of other events) */
     rail?: number;
+    /** a ferry's landing ghat on the far bank */
+    farBn?: string;
   };
+}
+
+/** A toll stop's river crossing (its bridge, or the river a ferry takes you over), if it has one. */
+export function crossingOf(e: RouteEvent): TollEvent['bridge'] | undefined {
+  return e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll' || e.type === 'ferry' ? e.bridge : undefined;
 }
 
 /** Railway level crossing: sometimes the gates close and a train passes. */
@@ -222,6 +230,14 @@ const MUKTARPUR: LegalStop = {
   id: 'muktarpur', type: 'bridgeToll', feeKey: 'muktarpurToll', nameBn: 'মুক্তারপুর সেতু টোল', icon: '{bridge}',
   bridge: { nameBn: 'মুক্তারপুর সেতু', style: 'girder', offset: 300, length: 560 },
 };
+/**
+ * Daulatdia–Paturia, the Padma just below its meeting with the Jamuna: no bridge, a ferry from one ghat to the
+ * other. The official ticket for a truck is only part of it: the ghat's "serial" brokers take their cut too.
+ */
+const DAULATDIA: LegalStop = {
+  id: 'daulatdia', type: 'ferry', feeKey: 'daulatdiaFerry', nameBn: 'দৌলতদিয়া ফেরিঘাট', icon: '{ferry}',
+  bridge: { nameBn: 'পদ্মা — দৌলতদিয়া থেকে পাটুরিয়া', farBn: 'পাটুরিয়া ফেরিঘাট', style: 'ferry', offset: 260, length: 650 },
+};
 const EXPRESSWAY: LegalStop = {
   id: 'expressway', type: 'roadToll', feeKey: 'expresswayToll', nameBn: 'এক্সপ্রেসওয়ে টোল', icon: '{road}',
 };
@@ -334,6 +350,22 @@ export const START_POINTS: StartPoint[] = [
       { nameBn: 'হালিমা খালার ক্ষেত', vegetables: ['onion', 'chili'], farmerLineBn: 'ঢাকায় পেঁয়াজ নব্বই, আমি পাই তিরিশ। বাকিটা কই যায়?' },
       { nameBn: 'বাদশা মিয়ার ক্ষেত', vegetables: ['brinjal', 'tomato'], farmerLineBn: 'বেগুনে এবার পোকা কম, দামটাও কম।' },
       { nameBn: 'সুজানগরের চাষি সমিতি', vegetables: ['onion', 'potato', 'gourd'], farmerLineBn: 'একসাথে নিয়া যাও, ট্রাক ভাড়া ভাগ করি।' },
+    ],
+  },
+  {
+    // R710: Kumarkhali → Khoksa → Pangsha → Rajbari → Goalanda → Daulatdia ghat, the ferry over the Padma to
+    // Paturia, then the Dhaka–Aricha highway (N5): Manikganj → Dhamrai → Savar → Gabtoli
+    id: 'kumarkhali',
+    nameBn: 'কুমারখালী',
+    pathBn: 'রাজবাড়ী → দৌলতদিয়া ঘাট → ফেরিতে পদ্মা পার → পাটুরিয়া → মানিকগঞ্জ → সাভার',
+    legal: [DAULATDIA],
+    randomBarriers: 7,
+    farmsBn: 'কুমারখালীর সবজি ক্ষেত',
+    farms: [
+      { nameBn: 'গড়াই পাড়ের ক্ষেত', vegetables: ['tomato', 'chili'], farmerLineBn: 'ঘাটে দুই দিন আটকা থাকলে টমেটো আর টমেটো থাকে না, বাবা।' },
+      { nameBn: 'রহিমা খালার ক্ষেত', vegetables: ['brinjal', 'gourd'], farmerLineBn: 'ফেরির সিরিয়ালে দালাল না ধরলে পার হওয়া কঠিন।' },
+      { nameBn: 'শিলাইদহের চরের ক্ষেত', vegetables: ['potato', 'onion'], farmerLineBn: 'রবি ঠাকুরের শিলাইদহ, তবু আলুর দামে কবিতা নাই।' },
+      { nameBn: 'তাঁতপল্লীর পাশের ক্ষেত', vegetables: ['cabbage', 'cauliflower', 'tomato'], farmerLineBn: 'তাঁতের লুঙ্গি আর ক্ষেতের কপি — দুটোই ঢাকায় যায়, লাভ থাকে না।' },
     ],
   },
   {
@@ -460,7 +492,7 @@ function placeLandmarks(startId: string, events: RouteEvent[], blocked: Blocked[
     }
     const ev = events.find((x) => x.id === e.stop);
     if (!ev) continue;
-    const br = (ev.type === 'roadTax' || ev.type === 'roadToll' || ev.type === 'bridgeToll') && ev.bridge ? ev.bridge : null;
+    const br = crossingOf(ev) ?? null;
     cur.to = ev.s - 200;
     segs.push({ from: br ? ev.s + br.offset * 2 + br.length + 140 : ev.s + 250, to: hi, defs: [] });
   }
@@ -547,6 +579,9 @@ function packLandmarks(defs: LandmarkDef[], from: number, to: number, allFree: R
   });
   return placed;
 }
+
+/** Ground a stop keeps clear before itself: a ferry ghat's waiting yard of parked trucks is longer. */
+const yardBefore = (e: RouteEvent): number => (e.type === 'ferry' ? FERRY.yardLength + 30 : 160);
 
 /** Build a fresh route for a start point; barriers are placed randomly between the legal stops. */
 export function generateRoute(startId: string, seed = Math.floor(Math.random() * 1e9)): RouteDef {
@@ -684,7 +719,7 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   ];
   for (const e of events) {
     if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
-    const br = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.bridge : null;
+    const br = crossingOf(e) ?? null;
     const rail = br?.rail ?? 0;
     const end = br ? e.s + br.offset + br.length + rail + 250 : e.s + 300;
     busy.push([Math.min(e.s - 450, e.s + (br?.offset ?? 0) - rail - 200), end]);
@@ -710,9 +745,9 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   ];
   for (const e of events) {
     if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
-    const br = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.bridge : null;
+    const br = crossingOf(e) ?? null;
     const rail = br?.rail ?? 0;
-    taken.push([e.s - 160 - rail, br ? e.s + br.offset + br.length + rail + br.offset + 120 : e.s + 120]);
+    taken.push([e.s - yardBefore(e) - rail, br ? e.s + br.offset + br.length + rail + br.offset + 120 : e.s + 120]);
   }
   // The landmarks look at each side of the road on its own: a village shortcut that stays on its side, a school,
   // or the railway beside a bridge (always on the left) leaves the other side free.
@@ -735,13 +770,13 @@ export function generateRoute(startId: string, seed = Math.floor(Math.random() *
   ];
   for (const e of events) {
     if (e.type === 'farm' || e.type === 'market' || e.type === 'junction') continue;
-    const br = (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') && e.bridge ? e.bridge : null;
+    const br = crossingOf(e) ?? null;
     if (!br) {
       blocked.push(both(e.s - 160, e.s + 120));
       continue;
     }
     const end = e.s + br.offset + br.length + br.offset + 120;
-    blocked.push(both(e.s - 160, end));
+    blocked.push(both(e.s - yardBefore(e), end));
     if (br.rail) blocked.push({ from: e.s - 160 - br.rail, to: e.s - 160, side: -1 }, { from: end, to: end + br.rail, side: -1 });
   }
   const landmarks = placeLandmarks(sp.id, events, blocked, taken, LAYOUT.highwayStart + 400, cityStartS - 250, rng);

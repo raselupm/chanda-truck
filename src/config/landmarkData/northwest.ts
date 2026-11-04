@@ -1,5 +1,6 @@
 // Landmarks on the north-west routes (Jessore, Rajshahi, Bogura, Rangpur, Pabna), in road order toward Dhaka.
-// All five meet at Hatikumrul and share the run over Jamuna Bridge to Gabtoli (NW_TAIL).
+// All five meet at Hatikumrul and share the run over Jamuna Bridge to Gabtoli (NW_TAIL). Kumarkhali's ferry route
+// crosses the Padma further south and comes in on the Dhaka–Aricha highway, joining them at Nabinagar (SAVAR).
 // Sides are the real ones where known (1 = right heading to Dhaka); places off the highway get a setback.
 
 import type { LandmarkDef, LandmarkEntry } from '../landmarks';
@@ -14,6 +15,14 @@ const NAVARATNA: LandmarkDef = {
   nameBn: 'হাটিকুমরুল নবরত্ন মন্দির', placeBn: 'উল্লাপাড়া, সিরাজগঞ্জ', kind: 'temple', model: 'navaratna', size: [50, 44], setback: 40,
 };
 
+/** The Dhaka–Aricha highway from Nabinagar into Dhaka: the memorial west of the road, JU east of it. */
+const SAVAR: LandmarkEntry[] = [
+  { nameBn: 'জাতীয় স্মৃতিসৌধ', placeBn: 'নবীনগর, সাভার', kind: 'monument', model: 'smritisoudho', size: [100, 110], side: 1 },
+  { nameBn: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়', placeBn: 'সাভার, ঢাকা', kind: 'university', model: 'jahangirnagar', size: [110, 80], side: -1 },
+  { nameBn: 'সাভার সেনানিবাস', placeBn: 'সাভার, ঢাকা', kind: 'cantonment', side: 1 },
+  { nameBn: 'গাবতলী বাস টার্মিনাল', placeBn: 'মিরপুর, ঢাকা', kind: 'busTerminal', side: -1 },
+];
+
 /** Hatikumrul → Jamuna Bridge → Tangail → Savar → Gabtoli: every NW route ends with this. */
 const NW_TAIL: LandmarkEntry[] = [
   { nameBn: 'হাটিকুমরুল গোলচত্বর', placeBn: 'উল্লাপাড়া, সিরাজগঞ্জ', kind: 'chattar' },
@@ -27,11 +36,7 @@ const NW_TAIL: LandmarkEntry[] = [
   { nameBn: 'কালিয়াকৈর হাই-টেক পার্ক', placeBn: 'কালিয়াকৈর, গাজীপুর', kind: 'govtBuilding' },
   { nameBn: 'চন্দ্রা মোড়', placeBn: 'কালিয়াকৈর, গাজীপুর', kind: 'chattar' },
   { nameBn: 'ঢাকা ইপিজেড', placeBn: 'আশুলিয়া, সাভার', kind: 'factory', model: 'dhakaEpz', size: [110, 70] },
-  // on the Dhaka–Aricha highway at Nabinagar: the memorial west of the road, JU east of it
-  { nameBn: 'জাতীয় স্মৃতিসৌধ', placeBn: 'নবীনগর, সাভার', kind: 'monument', model: 'smritisoudho', size: [100, 110], side: 1 },
-  { nameBn: 'জাহাঙ্গীরনগর বিশ্ববিদ্যালয়', placeBn: 'সাভার, ঢাকা', kind: 'university', model: 'jahangirnagar', size: [110, 80], side: -1 },
-  { nameBn: 'সাভার সেনানিবাস', placeBn: 'সাভার, ঢাকা', kind: 'cantonment', side: 1 },
-  { nameBn: 'গাবতলী বাস টার্মিনাল', placeBn: 'মিরপুর, ঢাকা', kind: 'busTerminal', side: -1 },
+  ...SAVAR,
 ];
 
 /** Bogura's stretch of N5, shared by the Bogura and Rangpur runs. */
@@ -127,5 +132,35 @@ export const LANDMARKS_NORTHWEST: Record<string, LandmarkEntry[]> = {
     { nameBn: 'রবীন্দ্র কাছারিবাড়ি', placeBn: 'শাহজাদপুর, সিরাজগঞ্জ', kind: 'museum', model: 'rabindraKachharibari', size: [56, 44], setback: 35 },
     NAVARATNA,
     ...NW_TAIL,
+  ],
+  // R710 from Kumarkhali through Khoksa and Pangsha to Rajbari, Goalanda Mor (N7) and Daulatdia ghat; the ferry to
+  // Paturia; the Dhaka–Aricha highway through Shibalaya, Manikganj and Dhamrai to Nabinagar
+  kumarkhali: [
+    { nameBn: 'শিলাইদহ কুঠিবাড়ি', placeBn: 'কুমারখালী, কুষ্টিয়া', kind: 'museum', model: 'kuthibari', size: [70, 55], setback: 30 },
+    { nameBn: 'কাঙাল হরিনাথ স্মৃতি জাদুঘর', placeBn: 'কুমারখালী, কুষ্টিয়া', kind: 'museum' },
+    { nameBn: 'কুমারখালী তাঁতপল্লী', placeBn: 'কুমারখালী, কুষ্টিয়া', kind: 'market' },
+    { nameBn: 'মীর মশাররফ হোসেনের বাস্তুভিটা', placeBn: 'লাহিনীপাড়া, কুমারখালী', kind: 'museum', setback: 25 },
+    { nameBn: 'কুমারখালী রেলস্টেশন', placeBn: 'কুমারখালী, কুষ্টিয়া', kind: 'station' },
+    { nameBn: 'জানিপুর কালীমন্দির', placeBn: 'খোকসা, কুষ্টিয়া', kind: 'temple' },
+    { nameBn: 'পাংশা সরকারি কলেজ', placeBn: 'পাংশা, রাজবাড়ী', kind: 'college' },
+    { nameBn: 'রাজবাড়ী রেলস্টেশন', placeBn: 'রাজবাড়ী', kind: 'station' },
+    { nameBn: 'রাজবাড়ী সরকারি কলেজ', placeBn: 'রাজবাড়ী', kind: 'college' },
+    { nameBn: 'গোয়ালন্দ মোড়', placeBn: 'গোয়ালন্দ, রাজবাড়ী', kind: 'chattar' },
+    { nameBn: 'গোয়ালন্দ ঘাট রেলস্টেশন', placeBn: 'দৌলতদিয়া, রাজবাড়ী', kind: 'station' },
+    { nameBn: 'দৌলতদিয়া লঞ্চঘাট', placeBn: 'গোয়ালন্দ, রাজবাড়ী', kind: 'riverGhat' },
+    { stop: 'daulatdia' },
+    { nameBn: 'পাটুরিয়া লঞ্চঘাট', placeBn: 'শিবালয়, মানিকগঞ্জ', kind: 'riverGhat', pin: true },
+    { nameBn: 'তেওতা জমিদারবাড়ি', placeBn: 'শিবালয়, মানিকগঞ্জ', kind: 'ruins', setback: 30 },
+    { nameBn: 'বালিয়াটি জমিদারবাড়ি', placeBn: 'সাটুরিয়া, মানিকগঞ্জ', kind: 'museum', model: 'baliati', size: [92, 56], setback: 40 },
+    { nameBn: 'সরকারি দেবেন্দ্র কলেজ', placeBn: 'মানিকগঞ্জ', kind: 'college' },
+    { nameBn: 'মানিকগঞ্জ বাসস্ট্যান্ড', placeBn: 'মানিকগঞ্জ', kind: 'busTerminal' },
+    { nameBn: 'মানিকগঞ্জ ২৫০ শয্যা জেলা হাসপাতাল', placeBn: 'মানিকগঞ্জ', kind: 'hospital' },
+    { nameBn: 'ধামরাই জগন্নাথ রথ', placeBn: 'ধামরাই, ঢাকা', kind: 'temple', model: 'dhamraiRath', size: [44, 36], setback: 20 },
+    ...SAVAR.slice(0, 2),
+    { nameBn: 'বিপিএটিসি', placeBn: 'সাভার, ঢাকা', kind: 'govtBuilding' },
+    SAVAR[2],
+    { nameBn: 'হেমায়েতপুর চামড়া শিল্পনগরী', placeBn: 'সাভার, ঢাকা', kind: 'factory' },
+    { nameBn: 'আমিনবাজার সেতু (তুরাগ)', placeBn: 'আমিনবাজার, সাভার', kind: 'bridgeView' },
+    ...SAVAR.slice(3),
   ],
 };

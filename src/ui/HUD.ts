@@ -55,7 +55,7 @@ function speedometerSvg(): string {
   </svg>`;
 }
 
-const ICON: Record<string, string> = { farm: '{farm}', barrier: '{hand}', roadTax: '{receipt}', roadToll: '{receipt}', bridgeToll: '{bridge}', rail: '{train}', market: '{cart}', roadworks: '{cement}', junction: '{trafficlight}' };
+const ICON: Record<string, string> = { farm: '{farm}', barrier: '{hand}', roadTax: '{receipt}', roadToll: '{receipt}', bridgeToll: '{bridge}', ferry: '{ferry}', rail: '{train}', market: '{cart}', roadworks: '{cement}', junction: '{trafficlight}' };
 
 export class HUD {
   readonly root: HTMLDivElement;

@@ -101,6 +101,11 @@ export class TruckController {
     if (under > 0) this.setS(this.s + under, this.d);
   }
 
+  /** Carried along the road by something under the truck (the ferry): moves it ds without turning it. */
+  carry(ds: number): void {
+    this.setS(this.s + ds, this.d);
+  }
+
   /** Nudge sideways (collisions). */
   shiftLateral(dd: number): void {
     this.setS(this.s, this.d + dd);

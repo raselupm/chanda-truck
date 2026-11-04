@@ -35,6 +35,7 @@ import { Environment } from '../world/Environment';
 import { Aircraft } from '../world/Aircraft';
 import { Exhaust } from '../world/Exhaust';
 import { VillageSights } from '../world/VillageSights';
+import { FerryGhat } from '../world/FerryGhat';
 import { Landmarks } from '../world/Landmarks';
 import { Pedestrians } from '../world/Pedestrians';
 import { RailCrossing } from '../world/RailCrossing';
@@ -227,6 +228,10 @@ export class Game {
             this.pieces.push(bridge);
             this.piecesGroup.add(bridge.group);
           }
+          break;
+        case 'ferry':
+          piece = new FerryGhat(e, this);
+          this.routePieces.push(piece);
           break;
         case 'rail':
           piece = new RailCrossing(e, this);
@@ -462,6 +467,10 @@ export class Game {
     let chanda = 0;
     for (const e of this.route.events) {
       if (e.type === 'roadTax' || e.type === 'roadToll' || e.type === 'bridgeToll') legal += feeFor(e.feeKey);
+      if (e.type === 'ferry') {
+        legal += feeFor(e.feeKey);
+        chanda += chandaFor(ECONOMY.ferrySerialChanda);
+      }
       if (e.type === 'barrier') chanda += chandaFor(e.chanda);
     }
     return { legal, chanda };

@@ -731,6 +731,33 @@ export class Sound {
     }
   }
 
+  /** A ferry's deep horn: one long blast (two when casting off). */
+  shipHorn(blasts = 1, vol = 1): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    for (let i = 0; i < blasts; i++) {
+      const t0 = ctx.currentTime + i * 2.4;
+      const dur = 1.9;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(0.14 * vol, t0 + 0.25);
+      g.gain.setValueAtTime(0.14 * vol, t0 + dur - 0.4);
+      g.gain.linearRampToValueAtTime(0, t0 + dur);
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 520;
+      g.connect(f).connect(this.master);
+      for (const hz of [98, 123, 147]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = hz;
+        o.connect(g);
+        o.start(t0);
+        o.stop(t0 + dur + 0.05);
+      }
+    }
+  }
+
   /** Wheels over rail joints: "ta-dak". */
   clack(): void {
     const ctx = this.ctx;

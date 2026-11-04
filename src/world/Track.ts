@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { CITY, HILL, JUNCTION, ROAD, SHORTCUT } from '../config/tuning';
-import type { BridgeStyle, RouteDef } from '../config/route';
+import { crossingOf, type BridgeStyle, type RouteDef } from '../config/route';
 import { clamp, smoothstep } from '../utils/math';
 import { mulberry32 } from '../utils/rng';
 import { Shortcut } from './Shortcut';
@@ -78,11 +78,12 @@ export class Track {
     for (const e of route.events) {
       if (e.type === 'farm') continue;
       let end = e.s + ROAD.straightAfter;
-      if ((e.type === 'bridgeToll' || e.type === 'roadToll' || e.type === 'roadTax') && e.bridge) {
-        const start = e.s + e.bridge.offset;
-        const st = ROAD.bridgeStyles[e.bridge.style];
-        this.bridges.push({ start, end: start + e.bridge.length, style: e.bridge.style, nameBn: e.bridge.nameBn, deck: st.deck, ramp: st.ramp });
-        end = start + e.bridge.length + st.ramp + 60;
+      const br = crossingOf(e);
+      if (br) {
+        const start = e.s + br.offset;
+        const st = ROAD.bridgeStyles[br.style];
+        this.bridges.push({ start, end: start + br.length, style: br.style, nameBn: br.nameBn, deck: st.deck, ramp: st.ramp });
+        end = start + br.length + st.ramp + 60;
       }
       if (e.type === 'market') end = this.length + 2000;
       straight.push([e.s - ROAD.straightBefore, end]);
@@ -312,6 +313,11 @@ export class Track {
 
   bridgeAt(s: number): BridgeSpan | undefined {
     return this.bridges.find((b) => s >= b.start && s <= b.end);
+  }
+
+  /** On (or within margin of) a river crossed by ferry: no road there, only water. */
+  isFerry(s: number, margin = 0): boolean {
+    return this.bridges.some((b) => b.style === 'ferry' && s >= b.start - margin && s <= b.end + margin);
   }
 
   isRiver(s: number, margin = 80): boolean {

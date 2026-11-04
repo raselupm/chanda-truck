@@ -90,7 +90,7 @@ All numbers live in `src/config/`:
   - `cargoDamagePct.*`, `ramSpeedKmh` (90), `tollMaxSpeedKmh` (20), `chaseRequiredSeconds` (10)
   - `chaseMeterMode`: `'reset'` (default: dropping below 90 resets the meter) or `'pause'`
 - **`route.ts`**: start points (যশোর, রাজশাহী, ফরিদপুর, রাঙামাটি, বগুড়া, সিলেট, নেত্রকোনা, পটুয়াখালী,
-  কুমিল্লা, রংপুর, পাবনা, খুলনা, নড়াইল, মুন্সীগঞ্জ, বান্দরবান). Each has an ordered list of legal toll stops on its real highway and a number of random
+  কুমিল্লা, রংপুর, পাবনা, কুমারখালী, খুলনা, নড়াইল, মুন্সীগঞ্জ, বান্দরবান). Each has an ordered list of legal toll stops on its real highway and a number of random
   chanda barriers:
   - যশোর: লালন শাহ সেতু → নাটোর সড়ক টোল → যমুনা সেতু, 10 barriers
   - রাজশাহী: নাটোর সড়ক টোল → যমুনা সেতু, 6 barriers
@@ -104,6 +104,11 @@ All numbers live in `src/config/`:
   - কুমিল্লা: মেঘনা-গোমতী সেতু (Daudkandi) → মেঘনা সেতু (Meghnaghat), 6 barriers
   - রংপুর: যমুনা সেতু (N5 via Palashbari, Gobindaganj, Bogura and Hatikumrul), 10 barriers
   - পাবনা: যমুনা সেতু (via Kashinathpur, Baghabari and Hatikumrul), 7 barriers; onion farms
+  - কুমারখালী: দৌলতদিয়া ফেরিঘাট → the ferry over the Padma → পাটুরিয়া (R710 via Khoksa, Pangsha and Rajbari, then
+    the Dhaka–Aricha highway via Manikganj, Dhamrai and Savar), 7 barriers. The only crossing without a bridge
+    (`type: 'ferry'`, `world/FerryGhat.ts`, `FERRY` in `tuning.ts`): stop at the ticket counter like a toll, pay the
+    ticket (`fees.daulatdiaFerry`, TOLL) and the ghat brokers' serial (`ferrySerialChanda`, CHANDA), drive onto the
+    ferry, stop in the yellow box and she carries you across; drive off at Paturia once the bus ahead has rolled off
   - খুলনা: মোল্লাহাট সেতু → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল (via Gopalganj and Bhanga), 7 barriers
   - নড়াইল: মধুমতি সেতু (Kalna) → পদ্মা সেতু → এক্সপ্রেসওয়ে টোল (via Bhatiapara and Bhanga), 6 barriers
   - মুন্সীগঞ্জ: মুক্তারপুর সেতু (Dhaleshwari) → Panchabati → Postogola, 3 barriers; potato farms, the shortest run

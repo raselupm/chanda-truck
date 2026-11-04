@@ -12,6 +12,11 @@
 // - jorBangla: Pabna's Jor Bangla temple, two curved do-chala huts joined front to back
 // - rabindraKachharibari: Tagore's two-storey red kachharibari at Shahjadpur with its arcaded verandahs
 // - jamunaResort, jahangirnagar, dhakaEpz, mirzapurCadet, kumudini, milkVita, payraChattar
+// Kumarkhali → Daulatdia, Paturia → Savar (the ferry route):
+// - kuthibari: Tagore's Shilaidaha Kuthibari — red, two arcaded floors, a terrace and a pyramid-roofed top floor,
+//   inside its wavy-topped boundary wall, the pond behind
+// - baliati: the Baliati zamindars' palace at Saturia — four cream blocks in a row behind columned porticos
+// - dhamraiRath: Dhamrai's Jagannath rath — the tiered chariot with corner spires on its wheels, the temple behind
 // Frame (see kit.ts): x away from the road, z along it (-z toward Dhaka), fronts face the road (-x).
 // Everything asymmetric is built along z or symmetric about its own x so the kit's left-side mirror stays right.
 
@@ -625,6 +630,123 @@ const rabindraKachharibari: LandmarkModel = (kit) => {
   kit.light(x - 2.4, 6.6, 6);
 };
 
+// ---------------------------------------------------------------- Kumarkhali, Manikganj, Dhamrai
+
+/** A square pyramid roof (4-sided cone turned square to the axes), w along x and d along z, base at y0. */
+function pyramidRoof(kit: LKit, x: number, z: number, w: number, d: number, h: number, color: number, y0: number): void {
+  const geo = cached('nw:pyramid', () => cone(Math.SQRT1_2, 1, 4).rotateY(Math.PI / 4));
+  kit.add(geo, color, x, y0 + h / 2, z, [0, 0, 0], [w, h, d]);
+}
+
+const kuthibari: LandmarkModel = (kit) => {
+  grounds(kit);
+  const L = kit.length;
+  const D = kit.depth;
+  const RED = 0xb5523a;
+  const ROOF = 0x8c3b2a;
+  // the boundary wall with its wavy top
+  kit.compound(2, -L / 2 + 3, D - 2, L / 2 - 3, 1.4, RED, 0, 6);
+  for (let z = -L / 2 + 4; z < L / 2 - 3; z += 2) if (Math.abs(z) > 3.5) kit.add(cyl(0.95, 0.95, 0.3, 12), RED, 2, 1.4, z, [0, 0, Math.PI / 2]);
+  kit.ground(14, 0, 22, 3, 0xcbbfa6);
+  const x = 31;
+  kit.block(x, 0, 18, 26, 0.9, 0xd9d2c4);
+  // two floors, each with its arcade toward the road and a white cornice
+  for (const [y, h] of [[0.9, 4.2], [5.45, 3.8]] as const) {
+    kit.block(x, 0, 16, 24, h, RED, y);
+    arches(kit, x - 8, -11, 11, 7, 1.5, h - 1.4, y + 0.2);
+    kit.block(x, 0, 16.6, 24.6, 0.35, WHITE, y + h);
+  }
+  // the roof terrace: a parapet round it, the top floor in the middle under its pyramid roof
+  const yT = 9.6;
+  for (const sd of [-1, 1]) {
+    kit.block(x, sd * 12, 16.4, 0.3, 0.9, WHITE, yT);
+    kit.block(x + sd * 8, 0, 0.3, 24.4, 0.9, WHITE, yT);
+  }
+  kit.block(x, 0, 9, 11, 3.2, RED, yT);
+  kit.windows(x - 4.5, -5, 5, yT + 0.6, 1, 3.2, OPENING, 2.4, 1.1, 1.8);
+  kit.block(x, 0, 9.6, 11.6, 0.3, WHITE, yT + 3.2);
+  pyramidRoof(kit, x, 0, 10.6, 12.6, 3, ROOF, yT + 3.5);
+  // the pond behind, its bathing ghat, mango trees round the lawn
+  kit.water(D - 9, -L / 4, 12, 22);
+  kit.block(D - 15.5, -L / 4, 1.5, 6, 0.6, 0xd9d2c4);
+  for (const [tx, tz] of [[10, -L / 2 + 8], [10, L / 2 - 8], [D - 8, L / 4], [20, -L / 2 + 10], [44, L / 2 - 7]]) kit.tree(tx, tz, 1.1);
+  kit.light(x - 8.1, 3, -6);
+  kit.light(x - 8.1, 3, 6);
+  kit.light(x - 8.1, 7.3, 0);
+};
+
+const baliati: LandmarkModel = (kit) => {
+  grounds(kit);
+  const L = kit.length;
+  const D = kit.depth;
+  const CREAM = 0xe9e1cf;
+  const SHUTTER = 0x3f6b4a;
+  kit.compound(2, -L / 2 + 2, D - 2, L / 2 - 2, 1.6, 0xd8cfbd, 0, 8);
+  kit.ground(10, 0, 16, 4, 0xcbbfa6);
+  const x = 30;
+  const w = 14;
+  // four palace blocks in a row, the two middle ones a storey taller
+  for (const [z, storeys, len] of [[-32, 2, 17], [-11, 3, 21], [11, 3, 21], [32, 2, 17]] as const) {
+    const h = storeys * 4.4;
+    const y0 = 0.8;
+    kit.block(x, z, w + 2, len + 2, y0, 0xcfc6b4);
+    kit.block(x, z, w, len, h, CREAM, y0);
+    kit.windows(x - w / 2, z - len / 2 + 1, z + len / 2 - 1, y0 + 0.7, storeys, 4.4, SHUTTER, 2.6, 1.1, 2.4);
+    // the portico: tall columns, an entablature, a balustrade on top
+    const px = x - w / 2 - 2.4;
+    for (let zz = z - len / 2 + 1.5; zz <= z + len / 2 - 1.4; zz += 2.6) {
+      kit.cylinder(px, zz, 0.34, h, WHITE, y0, 10);
+      kit.block(px, zz, 0.9, 0.9, 0.4, WHITE, y0 + h - 0.4);
+    }
+    kit.block(px + 1.2, z, 3.4, len, 0.6, WHITE, y0 + h);
+    kit.block(x, z, w + 0.6, len + 0.6, 0.5, WHITE, y0 + h);
+    for (let zz = z - len / 2 + 0.5; zz <= z + len / 2 - 0.5; zz += 0.8) kit.block(px - 0.4, zz, 0.18, 0.18, 0.8, WHITE, y0 + h + 0.6);
+    kit.block(px - 0.4, z, 0.3, len, 0.2, WHITE, y0 + h + 1.4);
+    if (storeys === 3) kit.add(plate([[-5, 0], [5, 0], [0, 2.4]], 0.5), WHITE, px, y0 + h + 0.6, z);
+  }
+  kit.water(D - 7, 0, 9, L - 14);
+  for (const z of [-L / 2 + 6, L / 2 - 6]) kit.tree(9, z, 1.1);
+  for (const z of [-21.5, 0, 21.5]) kit.light(x - w / 2 - 0.2, 6, z);
+};
+
+const dhamraiRath: LandmarkModel = (kit) => {
+  const L = kit.length;
+  const D = kit.depth;
+  kit.ground(D / 2, 0, D, L, EARTH);
+  const RED = 0xc0392b;
+  const GOLD = 0xf2c14e;
+  const BLUE = 0x2a6fb0;
+  const x = 17;
+  // the wheels and the timber platform
+  for (const dx of [-4.4, 4.4]) for (let i = 0; i < 5; i++) kit.add(cyl(1.1, 1.1, 0.5, 14), 0x4a3424, x + dx, 1.1, -4 + i * 2, [0, 0, Math.PI / 2]);
+  kit.block(x, 0, 8.4, 10.6, 0.8, 0x7a4a2a, 2.0);
+  // three tiers, each smaller, a gold eave and a spire at each corner, the tall spire on top
+  const tiers: [number, number, number][] = [[7, 2.6, RED], [5, 2.2, BLUE], [3.2, 1.8, RED]];
+  let y = 2.8;
+  for (const [size, h, color] of tiers) {
+    kit.block(x, 0, size, size, h, color, y);
+    for (const c of [-1, 1]) for (const e of [-1, 1]) kit.block(x + (c * size) / 2, (e * size) / 2, 0.35, 0.35, h, 0xf7f3e8, y);
+    y += h;
+    kit.block(x, 0, size + 1, size + 1, 0.35, GOLD, y);
+    y += 0.35;
+    if (size > 4) for (const c of [-1, 1]) for (const e of [-1, 1]) kit.spire(x + (c * size) / 2, (e * size) / 2, size * 0.09, size * 0.26, GOLD, y);
+  }
+  shikhara(kit, x, 0, 1.6, 4.6, GOLD, y);
+  kit.cylinder(x, 0, 0.05, 2.4, 0xd8d8d8, y + 4.5, 6);
+  kit.add(box(0.04, 0.6, 1.0), RED, x, y + 6.5, 0.5);
+  // the two wooden horses at the front, bunting down to the ground
+  for (const dz of [-1.6, 1.6]) {
+    kit.block(x - 6, dz, 2.6, 0.8, 1.1, 0xf7f3e8, 2.2);
+    kit.block(x - 7.4, dz, 0.7, 0.7, 1.4, 0xf7f3e8, 2.9);
+  }
+  for (const [bx, bz] of [[x - 8, -9], [x - 8, 9], [x + 9, -9], [x + 9, 9]]) kit.bunting(x, 0, bx, bz, y + 3);
+  // the Jagannath temple behind the rath khola
+  ratna(kit, D - 9, 7, 6, 4, 6, 0xe9e1cf, 0.6);
+  kit.block(D - 9, 7, 7.4, 7.4, 0.6, 0xd9d2c4);
+  for (const [px, pz, yaw] of [[6, -6, 0.4], [8, 7, -2.6], [26, -10, 1.2], [5, 2, 0]] as const) kit.person(px, pz, yaw, { lungi: px > 20 });
+  kit.light(x, y + 4.4, 0, 0xffd27a);
+};
+
 // ---------------------------------------------------------------- Jamuna and the Tangail road
 
 /** Jamuna Resort at the bridge's east end: a red-roofed main block, cottages, a pool, palms, the river behind. */
@@ -842,4 +964,5 @@ function sph(r: number): THREE.BufferGeometry {
 export const MODELS_NORTHWEST: Record<string, LandmarkModel> = {
   rooppur, bheramaraPP, smritisoudho, mahasthangarh, puthiaShiva, navaratna, kherua, mithapukur, barobazar,
   jorBangla, rabindraKachharibari, jamunaResort, mirzapurCadet, kumudini, jahangirnagar, dhakaEpz, milkVita, payraChattar,
+  kuthibari, baliati, dhamraiRath,
 };

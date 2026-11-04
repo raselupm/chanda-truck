@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { ECONOMY } from '../config/economy';
-import { BROKEN_ROAD, CITY, EXHAUST, HILL, ROAD, SHORTCUT, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
+import { BROKEN_ROAD, CITY, EXHAUST, FERRY, HILL, ROAD, SHORTCUT, TRAFFIC, TRUCK, WORLD } from '../config/tuning';
 import type { Game } from '../game/Game';
 import { blobShadow, vertexColorMaterial } from '../utils/geometry';
 import { clamp, damp } from '../utils/math';
@@ -322,6 +322,8 @@ export class Traffic {
     const s = truckS + min + Math.random() * (TRAFFIC.spawnAheadMax - min);
     if (s > g.track.length - 300) return;
     if (this.excluded(s)) return;
+    // nothing drives on the river where a ferry crosses it, nor at its ghats
+    if (g.track.isFerry(s, FERRY.trafficClear + 80)) return;
     // not in the middle of a toll queue, roadworks or junction
     for (const p of g.pieces) if (p.controlsTraffic && s > p.s - 150 && s < p.s + 100) return;
     // oncoming vehicles would have to drive through a closed barrier to reach us
@@ -607,7 +609,9 @@ export class Traffic {
       // Writing is unreadable far away: skip those draw calls
       v.art.visible = rel > -40 && rel < 170;
       const pinned = v.pinUntil > v.s;
-      if (rel < -TRAFFIC.despawnBehind || (!pinned && (rel > TRAFFIC.spawnAheadMax + 80 || (!v.road && this.excluded(v.s) && Math.abs(rel) > 120)))) {
+      // (at a ferry ghat they pull into the yard and are gone)
+      const ferried = !v.road && g.track.isFerry(v.s, FERRY.trafficClear);
+      if (ferried || rel < -TRAFFIC.despawnBehind || (!pinned && (rel > TRAFFIC.spawnAheadMax + 80 || (!v.road && this.excluded(v.s) && Math.abs(rel) > 120)))) {
         v.active = false;
         v.mesh.visible = false;
         continue;

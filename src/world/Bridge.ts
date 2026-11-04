@@ -72,7 +72,7 @@ export class Bridge extends SetPiece<TollEvent> {
     const waterLen = len + 260;
     this.water = this.own(new THREE.Mesh(
       new THREE.PlaneGeometry(1800, waterLen).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466, shahAmanat: 0x6a7f7a, meghnaGumti: 0x7a8466, girder: 0x6f8476, bhairab: 0x768a80, payra: 0x6e8478, meghna: 0x74867c, madhumati: 0x6c8274 }[style], map: this.waterTex }),
+      new THREE.MeshLambertMaterial({ color: { padma: 0x8a7a5a, jamuna: 0x6f8a86, lalon: 0x7d8466, shahAmanat: 0x6a7f7a, meghnaGumti: 0x7a8466, girder: 0x6f8476, bhairab: 0x768a80, payra: 0x6e8478, meghna: 0x74867c, madhumati: 0x6c8274, ferry: 0x8a7a5a }[style], map: this.waterTex }),
     ));
     this.water.position.set(0, 0.35, -(start + len / 2));
     this.group.add(this.water);

@@ -33,7 +33,11 @@ export const ECONOMY = {
     mollahatToll: 100,
     madhumatiToll: 550,
     muktarpurToll: 400,
+    /** Daulatdia–Paturia ferry, a medium truck (BIWTC's ৳960, plus the fare rises since) */
+    daulatdiaFerry: 1_250,
   },
+  /** The ghat's "serial" brokers at a ferry: paid on top of the ticket or the truck waits for days (CHANDA). */
+  ferrySerialChanda: 1_500,
 
   /** % of current cargo kg lost in each situation */
   cargoDamagePct: {

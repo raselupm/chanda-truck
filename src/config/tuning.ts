@@ -86,6 +86,8 @@ export const ROAD = {
     meghna: { deck: 9, ramp: 210 },
     // Madhumati (Kalna): steel network arch over the navigation channel, concrete approach spans
     madhumati: { deck: 11, ramp: 240 },
+    // a ferry: the ghat road runs down onto the pontoon, its deck level with the ferry's (the water is at 0.35)
+    ferry: { deck: 1.6, ramp: 40 },
   },
   /** straight road kept before / after every event (set pieces sit on x = 0) */
   straightBefore: 260,
@@ -495,6 +497,23 @@ export const MUD = {
   stainSpacing: 0.9,
   /** decals kept in the world (oldest are reused) */
   maxStains: 360,
+} as const;
+
+/** The ferry over the Padma (world/FerryGhat.ts): Daulatdia ghat → Paturia ghat. */
+export const FERRY = {
+  /** the ferry's car deck: length along the road and half its width */
+  length: 46,
+  halfWidth: 7,
+  /** after you stop on the deck: the ramp comes up and she casts off */
+  boardSeconds: 3,
+  /** the crossing itself (compressed like the roads) */
+  crossSeconds: 34,
+  /** tying up at the far pontoon before the ramp comes down */
+  dockSeconds: 2.5,
+  /** our way, metres before the ticket counter: the waiting yard full of parked trucks */
+  yardLength: 220,
+  /** traffic within this many metres of the river is gone (pulled into the yard, or still waiting across it) */
+  trafficClear: 220,
 } as const;
 
 /** Real roadside landmarks (config/landmarks.ts, world/Landmarks.ts). */

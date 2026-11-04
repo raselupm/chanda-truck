@@ -151,6 +151,8 @@ export class RoadStreamer {
       const hw1 = t.halfWidth(s1);
       const village = t.isVillage(sm);
       const bridge = t.bridgeAt(sm);
+      // a ferry crossing: only water (the ferry's deck is drawn by FerryGhat)
+      if (bridge?.style === 'ferry') continue;
       const flyover = !bridge && t.isFlyover(sm);
       const hill = t.isHill(sm);
       const sh = bridge ? 1.0 : hill ? HILL.shoulder : ROAD.shoulder;
