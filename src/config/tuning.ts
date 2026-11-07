@@ -152,7 +152,7 @@ export const SHORTCUT = {
  */
 export const HILL = {
   /** two wide lanes (along the road, not along x): room to pass oncoming traffic without scraping */
-  halfWidth: 5.5,
+  halfWidth: 7.5,
   shoulder: 1,
   /** bends: two waves on top of each other (metres) */
   bendAmp: [17, 20] as [number, number],
