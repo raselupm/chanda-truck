@@ -151,8 +151,8 @@ export const SHORTCUT = {
  * inside is a hillside, the outside a drop into the valley: run off the outside edge and the truck falls.
  */
 export const HILL = {
-  /** two lanes (along the road, not along x) */
-  halfWidth: 3.5,
+  /** two wide lanes (along the road, not along x): room to pass oncoming traffic without scraping */
+  halfWidth: 5.5,
   shoulder: 1,
   /** bends: two waves on top of each other (metres) */
   bendAmp: [17, 20] as [number, number],
@@ -251,30 +251,30 @@ export const FINAL_CRASH_SOUND = { url: '/sounds/final-crash.m4a', volume: 0.9 }
  */
 export const EXHAUST = {
   /** seconds a puff lasts */
-  life: 1.7,
+  life: 1.1,
   /** a puff swells to this many times its size */
-  swell: 4,
+  swell: 2.5,
   /** only vehicles this close to the truck smoke */
   range: 170,
   player: {
     pipe: [1.33, 3.65, -1.75] as [number, number, number],
-    rate: 7,
-    size: 0.55,
-    alpha: 0.4,
-    /** flooring it from low speed: thick black clouds */
-    accelRate: 26,
-    accelSize: 0.9,
-    accelAlpha: 0.5,
+    rate: 4,
+    size: 0.4,
+    alpha: 0.12,
+    /** flooring it from low speed: a light grey haze (thick clouds hid the traffic alongside) */
+    accelRate: 9,
+    accelSize: 0.55,
+    accelAlpha: 0.2,
     /** seconds of heavy smoke when the engine starts */
     startKick: 1.6,
   },
   traffic: {
-    bus: { pipe: [0.8, 0.45, 5.55], rate: 12, size: 0.75, alpha: 0.55 },
-    truck: { pipe: [0.8, 0.45, 4.3], rate: 12, size: 0.75, alpha: 0.6 },
-    car: { pipe: [0.55, 0.3, 2.25], rate: 4, size: 0.35, alpha: 0.3 },
-    cng: { pipe: [0.35, 0.35, 1.35], rate: 7, size: 0.35, alpha: 0.45 },
-    bike: { pipe: [0.22, 0.4, 0.95], rate: 5, size: 0.25, alpha: 0.38 },
-    pickup: { pipe: [0.6, 0.35, 2.55], rate: 7, size: 0.45, alpha: 0.45 },
+    bus: { pipe: [0.8, 0.45, 5.55], rate: 6, size: 0.5, alpha: 0.22 },
+    truck: { pipe: [0.8, 0.45, 4.3], rate: 6, size: 0.5, alpha: 0.24 },
+    car: { pipe: [0.55, 0.3, 2.25], rate: 3, size: 0.3, alpha: 0.12 },
+    cng: { pipe: [0.35, 0.35, 1.35], rate: 4, size: 0.3, alpha: 0.18 },
+    bike: { pipe: [0.22, 0.4, 0.95], rate: 3, size: 0.22, alpha: 0.15 },
+    pickup: { pipe: [0.6, 0.35, 2.55], rate: 4, size: 0.35, alpha: 0.18 },
   },
 } as const;
 
